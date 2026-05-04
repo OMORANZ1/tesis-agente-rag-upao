@@ -1,0 +1,7 @@
+langchain
+langchain-groq
+langchain-community
+chromadb
+pypdf
+flask
+python-dotenv
