@@ -1,6 +1,9 @@
 langchain
+langgraph
 langchain-groq
 langchain-community
+langchain-mistralai
+langchain-text-splitters
 chromadb
 pypdf
 flask
