@@ -1,6 +1,10 @@
 from flask import Flask, render_template, request, jsonify
-from agent import crear_agente, reiniciar_historial
 import os
+
+try:
+    from .agent import crear_agente, reiniciar_historial
+except ImportError:
+    from agent import crear_agente, reiniciar_historial
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -16,6 +20,10 @@ def obtener_agente():
 @app.route('/')
 def index():
     return render_template('index.html')
+
+@app.route('/health')
+def health():
+    return jsonify({'status': 'ok'})
 
 @app.route('/chat', methods=['POST'])
 def chat():
@@ -38,6 +46,7 @@ def reiniciar():
     return jsonify({'mensaje': 'Sesión reiniciada correctamente'})
 
 if __name__ == '__main__':
+    port = int(os.getenv('PORT', 5000))
     print("Iniciando sistema de tutoría socrática...")
-    print("Abre tu navegador en: http://localhost:5000")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    print(f"Abre tu navegador en: http://localhost:{port}")
+    app.run(debug=os.getenv('FLASK_DEBUG') == '1', host='0.0.0.0', port=port)

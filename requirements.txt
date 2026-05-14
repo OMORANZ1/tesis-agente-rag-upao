@@ -7,4 +7,5 @@ langchain-text-splitters
 chromadb
 pypdf
 flask
+gunicorn
 python-dotenv
