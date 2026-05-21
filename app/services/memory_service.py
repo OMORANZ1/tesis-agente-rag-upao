@@ -10,6 +10,17 @@ except ImportError:
 
 historial: List[HumanMessage | AIMessage] = []
 intentos_por_tema: Dict[str, int] = {}
+preguntas_hechas: List[str] = []
+
+
+def obtener_historial() -> List[dict[str, str]]:
+    return [
+        {
+            "role": "student" if isinstance(m, HumanMessage) else "tutor",
+            "content": m.content,
+        }
+        for m in historial
+    ]
 
 
 def construir_historial_texto() -> str:
@@ -32,6 +43,26 @@ def registrar_interaccion(pregunta: str, respuesta: str) -> None:
         historial = historial[-20:]
 
 
+def obtener_preguntas_hechas() -> List[str]:
+    return list(preguntas_hechas)
+
+
+def registrar_preguntas(nuevas_preguntas: List[str]) -> None:
+    global preguntas_hechas
+
+    for pregunta in nuevas_preguntas:
+        pregunta_limpia = pregunta.strip()
+        if pregunta_limpia and pregunta_limpia not in preguntas_hechas:
+            preguntas_hechas.append(pregunta_limpia)
+    if len(preguntas_hechas) > 50:
+        preguntas_hechas = preguntas_hechas[-50:]
+
+
+def obtener_intentos_tema(tema: str) -> int:
+    tema_normalizado = normalizar_tema(tema)
+    return intentos_por_tema.get(tema_normalizado, 0)
+
+
 def registrar_intento(tema: str) -> int:
     tema_normalizado = normalizar_tema(tema)
     intentos_por_tema[tema_normalizado] = intentos_por_tema.get(tema_normalizado, 0) + 1
@@ -39,7 +70,8 @@ def registrar_intento(tema: str) -> int:
 
 
 def reiniciar_memoria() -> None:
-    global historial, intentos_por_tema
+    global historial, intentos_por_tema, preguntas_hechas
 
     historial = []
     intentos_por_tema = {}
+    preguntas_hechas = []

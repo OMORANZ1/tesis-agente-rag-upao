@@ -58,25 +58,36 @@
             gap: 16px;
         }
 
-        .mensaje {
+        .mensaje-wrapper {
+            align-self: flex-start;
+            max-width: 85%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .mensaje-wrapper.usuario {
+            align-self: flex-end;
             max-width: 75%;
+        }
+
+        .mensaje {
             padding: 12px 16px;
             border-radius: 12px;
             font-size: 15px;
             line-height: 1.5;
+            white-space: pre-wrap;
         }
 
         .mensaje.usuario {
             background: #1a237e;
             color: white;
-            align-self: flex-end;
             border-bottom-right-radius: 4px;
         }
 
         .mensaje.agente {
             background: white;
             color: #333;
-            align-self: flex-start;
             border-bottom-left-radius: 4px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
@@ -88,6 +99,44 @@
             font-size: 13px;
             padding: 8px 16px;
             border-radius: 20px;
+            max-width: 90%;
+        }
+
+        .trace-panel {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #444;
+        }
+
+        .trace-panel summary {
+            cursor: pointer;
+            padding: 8px 12px;
+            font-weight: 600;
+            color: #1a237e;
+            list-style: none;
+        }
+
+        .trace-panel summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .trace-panel summary::before {
+            content: "▸ ";
+        }
+
+        .trace-panel[open] summary::before {
+            content: "▾ ";
+        }
+
+        .trace-contenido {
+            padding: 0 12px 10px 12px;
+            line-height: 1.6;
+        }
+
+        .trace-linea {
+            margin-top: 4px;
         }
 
         #input-area {
@@ -139,6 +188,9 @@
             gap: 6px;
             align-items: center;
             padding: 12px 16px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
         .punto {
@@ -163,21 +215,21 @@
 <header>
     <div>
         <h1>🎓 Tutor Socrático — Algoritmia y Programación</h1>
-        <p>Universidad Privada Antenor Orrego (UPAO) — Primer ciclo</p>
+        <p>Universidad Privada Antenor Orrego (UPAO) — Arquitectura multiagente con RAG</p>
     </div>
     <button id="btn-reiniciar" onclick="reiniciarSesion()">Nueva sesión</button>
 </header>
 
 <div id="chat-container">
     <div class="mensaje sistema">
-        ¡Hola! Soy tu tutor socrático de Algoritmia y Programación. 
+        ¡Hola! Soy tu tutor socrático de Algoritmia y Programación.
         Estoy aquí para guiarte, no para darte las respuestas. ¿En qué tema necesitas ayuda hoy?
     </div>
 </div>
 
 <div id="input-area">
-    <textarea 
-        id="input-mensaje" 
+    <textarea
+        id="input-mensaje"
         placeholder="Escribe tu pregunta sobre el curso..."
         onkeydown="manejarTecla(event)"
     ></textarea>
@@ -190,17 +242,74 @@
     const btnEnviar = document.getElementById('btn-enviar');
 
     function agregarMensaje(texto, tipo) {
+        const wrapper = document.createElement('div');
+        wrapper.className = `mensaje-wrapper${tipo === 'usuario' ? ' usuario' : ''}`;
+
         const div = document.createElement('div');
         div.className = `mensaje ${tipo}`;
         div.textContent = texto;
-        chatContainer.appendChild(div);
+        wrapper.appendChild(div);
+
+        chatContainer.appendChild(wrapper);
         chatContainer.scrollTop = chatContainer.scrollHeight;
-        return div;
+        return wrapper;
+    }
+
+    function crearPanelTrazabilidad(trace) {
+        if (!trace) return null;
+
+        const panel = document.createElement('details');
+        panel.className = 'trace-panel';
+
+        const summary = document.createElement('summary');
+        summary.textContent = '🔍 Trazabilidad de agentes';
+        panel.appendChild(summary);
+
+        const contenido = document.createElement('div');
+        contenido.className = 'trace-contenido';
+
+        [
+            ['🔍', 'Orquestador', trace.orquestador || '—'],
+            ['💪', 'Motivador', trace.motivador || '—'],
+            ['🔬', 'Especialista Técnico', trace.especialista_tecnico || '—'],
+            ['📝', 'Generador de Ejercicios', trace.generador_ejercicios || '—'],
+            ['📚', 'Pedagogo Socrático', trace.pedagogo_socratico || 'activo']
+        ].forEach(([icono, agente, valor]) => {
+            const linea = document.createElement('div');
+            linea.className = 'trace-linea';
+
+            const etiqueta = document.createElement('strong');
+            etiqueta.textContent = `${agente}:`;
+
+            linea.append(`${icono} `);
+            linea.appendChild(etiqueta);
+            linea.append(` ${valor}`);
+            contenido.appendChild(linea);
+        });
+
+        panel.appendChild(contenido);
+        return panel;
+    }
+
+    function agregarRespuestaAgente(texto, trace) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'mensaje-wrapper';
+
+        const div = document.createElement('div');
+        div.className = 'mensaje agente';
+        div.textContent = texto;
+        wrapper.appendChild(div);
+
+        const panel = crearPanelTrazabilidad(trace);
+        if (panel) wrapper.appendChild(panel);
+
+        chatContainer.appendChild(wrapper);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
     function mostrarCargando() {
         const div = document.createElement('div');
-        div.className = 'mensaje agente cargando';
+        div.className = 'cargando';
         div.id = 'cargando';
         div.innerHTML = '<div class="punto"></div><div class="punto"></div><div class="punto"></div>';
         chatContainer.appendChild(div);
@@ -232,14 +341,20 @@
             ocultarCargando();
 
             if (data.error) {
-                agregarMensaje('Error: ' + data.error, 'sistema');
+                const div = document.createElement('div');
+                div.className = 'mensaje sistema';
+                div.textContent = 'Error: ' + data.error;
+                chatContainer.appendChild(div);
             } else {
-                agregarMensaje(data.respuesta, 'agente');
+                agregarRespuestaAgente(data.respuesta, data.agents_trace);
             }
 
         } catch (error) {
             ocultarCargando();
-            agregarMensaje('Error de conexión. Intenta nuevamente.', 'sistema');
+            const div = document.createElement('div');
+            div.className = 'mensaje sistema';
+            div.textContent = 'Error de conexión. Intenta nuevamente.';
+            chatContainer.appendChild(div);
         }
 
         btnEnviar.disabled = false;
@@ -249,7 +364,10 @@
     async function reiniciarSesion() {
         await fetch('/reiniciar', { method: 'POST' });
         chatContainer.innerHTML = '';
-        agregarMensaje('Sesión reiniciada. ¿En qué tema necesitas ayuda?', 'sistema');
+        const div = document.createElement('div');
+        div.className = 'mensaje sistema';
+        div.textContent = 'Sesión reiniciada. ¿En qué tema necesitas ayuda?';
+        chatContainer.appendChild(div);
     }
 
     function manejarTecla(event) {

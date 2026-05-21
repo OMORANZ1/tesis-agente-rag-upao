@@ -1,4 +1,6 @@
 .env
+.venv/
+.uv/
 __pycache__/
 *.pyc
 chroma_db/
@@ -6,3 +8,7 @@ chroma_db/
 dist/
 build/
 .vscode/
+*.out
+*.err
+install-uv.ps1
+flask-simple.html
