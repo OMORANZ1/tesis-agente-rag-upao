@@ -2,15 +2,36 @@ try:
     from ..config import ALLOWED_TOPICS
     from ..services.memory_service import obtener_intentos_tema
     from ..state import TutorState
-    from ..utils import detectar_codigo, extraer_json, formatear_historial
+    from ..utils import (
+        detectar_codigo,
+        detectar_fuera_silabo,
+        extraer_json,
+        formatear_historial,
+    )
 except ImportError:
     from config import ALLOWED_TOPICS
     from services.memory_service import obtener_intentos_tema
     from state import TutorState
-    from utils import detectar_codigo, extraer_json, formatear_historial
+    from utils import detectar_codigo, detectar_fuera_silabo, extraer_json, formatear_historial
 
 
 EMOCIONES_FRUSTRACION = {"frustracion", "desmotivacion", "ansiedad"}
+FRUSTRACION_FRASES = (
+    "frustrado",
+    "frustrada",
+    "me frustra",
+    "desmotivado",
+    "desmotivada",
+    "ansioso",
+    "ansiosa",
+    "me estresa",
+    "me rindo",
+    "ya me cansé",
+    "ya me canse",
+    "no puedo con",
+    "esto es muy difícil",
+    "esto es muy dificil",
+)
 BLOQUEO_FRASES = (
     "no sé",
     "no se",
@@ -46,6 +67,11 @@ def _detectar_bloqueo(mensaje: str) -> bool:
     return any(frase in texto for frase in BLOQUEO_FRASES)
 
 
+def _detectar_frustracion_actual(mensaje: str) -> bool:
+    texto = (mensaje or "").lower()
+    return any(frase in texto for frase in FRUSTRACION_FRASES)
+
+
 def _detectar_progreso(mensaje: str, bloqueo: bool) -> str:
     texto = (mensaje or "").lower().strip()
     if bloqueo:
@@ -67,7 +93,9 @@ def agente_orquestador(state: TutorState, llm) -> TutorState:
     history = state.get("history", [])
     historial_texto = _limitar_texto(formatear_historial(history[-6:]))
     has_code = detectar_codigo(state["student_message"])
+    out_of_syllabus = detectar_fuera_silabo(state["student_message"])
     bloqueo = _detectar_bloqueo(state["student_message"])
+    frustracion_actual = _detectar_frustracion_actual(state["student_message"])
     progreso_local = _detectar_progreso(state["student_message"], bloqueo)
 
     prompt = f"""
@@ -77,18 +105,28 @@ Algoritmia y Programación (UPAO, primer ciclo).
 Analiza el mensaje del estudiante considerando el historial completo y el contexto
 emocional. NO respondas al estudiante; solo planifica la activación de agentes.
 
+Usa el historial para entender el contexto, pero decide la activación de agentes
+principalmente por el mensaje actual. No arrastres una activación anterior si el
+mensaje actual ya no muestra esa señal.
+
 Temas del curso:
 {ALLOWED_TOPICS}
 
 Criterios de activación (en orden de prioridad para el flujo):
-1. Motivador primero si hay frustración, bloqueo o desmotivación.
+0. Si el mensaje actual está fuera del sílabo, no actives agentes pedagógicos:
+   marca la ruta como fuera_silabo.
+1. Motivador primero solo si el mensaje actual muestra frustración emocional
+   explícita, ansiedad o desmotivación. No lo actives solo porque en el historial
+   hubo frustración.
 2. Especialista Técnico si el mensaje contiene código, pseudocódigo o lógica concreta.
 3. Generador de Ejercicios si hay vacío conceptual persistente (más de 3 intentos
    en el mismo tema sin avance aparente).
 4. Siempre al final el Pedagogo Socrático integrará todo y dará la respuesta visible.
 
 Indicador local de código detectado: {has_code}
+Indicador local de fuera de sílabo detectado: {out_of_syllabus}
 Indicador local de bloqueo detectado: {bloqueo}
+Indicador local de frustración emocional explícita detectada: {frustracion_actual}
 Indicador local de progreso del estudiante: {progreso_local}
 
 Devuelve SOLO JSON válido:
@@ -102,7 +140,7 @@ Devuelve SOLO JSON válido:
   "activate_motivator": true,
   "activate_technical": true,
   "activate_exercise_generator": true,
-  "route": "ruta_pedagogica_principal",
+  "route": "ruta_pedagogica_principal|fuera_silabo",
   "route_reason": "motivo breve de la planificación"
 }}
 
@@ -130,9 +168,31 @@ Mensaje actual del estudiante:
         },
     )
 
+    if out_of_syllabus:
+        data.update(
+            {
+                "topic": "fuera_del_silabo",
+                "difficulty_type": "ninguna",
+                "emotion": "neutral",
+                "bloqueo": False,
+                "student_progress": "sin_evidencia",
+                "activate_motivator": False,
+                "activate_technical": False,
+                "activate_exercise_generator": False,
+                "route": "fuera_silabo",
+                "route_reason": "El mensaje actual no pertenece al contenido del curso.",
+            }
+        )
+        bloqueo = False
+        progreso_local = "sin_evidencia"
+
     topic = data.get("topic", "tema_no_identificado")
     emotion = data.get("emotion", "neutral").lower()
-    bloqueo = bloqueo or bool(data.get("bloqueo")) or emotion == "bloqueo"
+    bloqueo = (
+        False
+        if out_of_syllabus
+        else bloqueo or bool(data.get("bloqueo")) or emotion == "bloqueo"
+    )
     if bloqueo and emotion == "neutral":
         emotion = "bloqueo"
     student_progress = data.get("student_progress", progreso_local)
@@ -148,10 +208,8 @@ Mensaje actual del estudiante:
         student_progress = "bloqueado"
     attempt_count = obtener_intentos_tema(topic) + 1
 
-    activate_motivator = (
-        bool(data.get("activate_motivator"))
-        or emotion in EMOCIONES_FRUSTRACION
-    )
+    raw_activate_motivator = bool(data.get("activate_motivator"))
+    activate_motivator = frustracion_actual
     activate_technical = has_code
     activate_exercise_generator = bool(data.get("activate_exercise_generator")) or (
         attempt_count > 3
@@ -159,6 +217,11 @@ Mensaje actual del estudiante:
 
     route = data.get("route", "ruta_pedagogica_principal")
     route_reason = data.get("route_reason", "Planificación pedagógica estándar.")
+    if raw_activate_motivator and not activate_motivator:
+        route_reason = (
+            "Continuación académica sin motivador: el mensaje actual no expresa "
+            "frustración emocional explícita."
+        )
     if bloqueo and "bloqueo" not in route_reason.lower():
         route_reason = f"{route_reason} Bloqueo explícito detectado."
 
@@ -190,6 +253,7 @@ Mensaje actual del estudiante:
         "student_progress": student_progress,
         "attempt_count": attempt_count,
         "has_code": has_code,
+        "out_of_syllabus": out_of_syllabus,
         "diagnostic_summary": data.get(
             "diagnostic_summary",
             "El estudiante necesita orientación pedagógica.",

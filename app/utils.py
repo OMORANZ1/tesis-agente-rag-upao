@@ -25,6 +25,25 @@ PSEUDOCODE_KEYWORDS = {
     "para",
 }
 
+OUT_OF_SYLLABUS_PATTERNS = (
+    r"\bred(es)?\s+neuronal(es)?\b",
+    r"\binteligencia\s+artificial\b",
+    r"\bmachine\s+learning\b",
+    r"\bdeep\s+learning\b",
+    r"\baprendizaje\s+automatico\b",
+    r"\baprendizaje\s+automático\b",
+    r"\bcomputaci[oó]n\s+cu[aá]ntica\b",
+    r"\bqu[aá]ntic[ao]s?\b",
+    r"\bbase(s)?\s+de\s+datos\b",
+    r"\bdesarrollo\s+web\b",
+    r"\bhtml\b",
+    r"\bcss\b",
+    r"\bjavascript\b",
+    r"\breact\b",
+    r"\bciberseguridad\b",
+    r"\bredes\s+inform[aá]ticas\b",
+)
+
 
 def extraer_json(texto: str, fallback: dict) -> dict:
     try:
@@ -63,6 +82,14 @@ def detectar_codigo(mensaje: str) -> bool:
     if len(pseudocode_hits) >= 2 and (len(lineas) >= 2 or tiene_operadores):
         return True
     return False
+
+
+def detectar_fuera_silabo(mensaje: str) -> bool:
+    texto = (mensaje or "").lower()
+    return any(
+        re.search(patron, texto, re.IGNORECASE)
+        for patron in OUT_OF_SYLLABUS_PATTERNS
+    )
 
 
 def formatear_historial(history: list[dict[str, str]] | None) -> str:

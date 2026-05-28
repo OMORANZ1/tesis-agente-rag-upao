@@ -19,6 +19,28 @@ def obtener_agente():
     return agente
 
 
+def _mensaje_error_usuario(error: Exception) -> str:
+    detalle = str(error)
+    error_type = type(error).__name__
+    texto_error = f"{error_type}: {detalle}".lower()
+
+    if (
+        "retryerror" in texto_error
+        or "httpstatuserror" in texto_error
+        or "rate limit" in texto_error
+        or "429" in texto_error
+        or "503" in texto_error
+        or "502" in texto_error
+        or "504" in texto_error
+    ):
+        return (
+            "El servicio de IA está tardando o está temporalmente ocupado. "
+            "Intenta enviar tu mensaje nuevamente en unos segundos."
+        )
+
+    return detalle
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -46,7 +68,7 @@ def chat():
             }
         )
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": _mensaje_error_usuario(e)}), 500
 
 
 @app.route("/reiniciar", methods=["POST"])

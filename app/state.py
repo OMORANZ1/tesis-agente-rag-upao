@@ -13,6 +13,7 @@ class TutorState(TypedDict, total=False):
     student_progress: str
     attempt_count: int
     has_code: bool
+    out_of_syllabus: bool
     activate_motivator: bool
     activate_technical: bool
     activate_exercise_generator: bool

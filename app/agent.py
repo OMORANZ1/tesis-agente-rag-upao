@@ -32,6 +32,7 @@ def _trace_por_defecto() -> dict[str, str]:
         "motivador": "no activado",
         "especialista_tecnico": "no activado",
         "generador_ejercicios": "no activado",
+        "fuera_silabo": "no activado",
         "pedagogo_socratico": "activo",
     }
 

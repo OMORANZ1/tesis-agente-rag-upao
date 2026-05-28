@@ -4,6 +4,7 @@ try:
     from .agents.exercise_generator import agente_generador_ejercicios
     from .agents.motivational import agente_motivador
     from .agents.orchestrator import agente_orquestador
+    from .agents.out_of_syllabus import agente_fuera_silabo
     from .agents.socratic import agente_pedagogo_socratico
     from .agents.technical import agente_especialista_tecnico
     from .state import TutorState
@@ -11,12 +12,15 @@ except ImportError:
     from agents.exercise_generator import agente_generador_ejercicios
     from agents.motivational import agente_motivador
     from agents.orchestrator import agente_orquestador
+    from agents.out_of_syllabus import agente_fuera_silabo
     from agents.socratic import agente_pedagogo_socratico
     from agents.technical import agente_especialista_tecnico
     from state import TutorState
 
 
 def _siguiente_agente(state: TutorState) -> str:
+    if state.get("out_of_syllabus") or state.get("route") == "fuera_silabo":
+        return "fuera_silabo"
     if state.get("activate_motivator") and "motivador" not in state.get(
         "agents_used", []
     ):
@@ -35,6 +39,7 @@ def construir_grafo(llm, retriever, system_prompt: str):
     workflow = StateGraph(TutorState)
 
     workflow.add_node("orquestador", lambda state: agente_orquestador(state, llm))
+    workflow.add_node("fuera_silabo", agente_fuera_silabo)
     workflow.add_node("motivador", lambda state: agente_motivador(state, llm))
     workflow.add_node(
         "especialista_tecnico",
@@ -56,6 +61,7 @@ def construir_grafo(llm, retriever, system_prompt: str):
         "orquestador",
         _siguiente_agente,
         {
+            "fuera_silabo": "fuera_silabo",
             "motivador": "motivador",
             "especialista_tecnico": "especialista_tecnico",
             "generador_ejercicios": "generador_ejercicios",
@@ -81,5 +87,6 @@ def construir_grafo(llm, retriever, system_prompt: str):
     )
     workflow.add_edge("generador_ejercicios", "pedagogo_socratico")
     workflow.add_edge("pedagogo_socratico", END)
+    workflow.add_edge("fuera_silabo", END)
 
     return workflow.compile()
