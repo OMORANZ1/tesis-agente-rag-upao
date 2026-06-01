@@ -25,6 +25,49 @@ def agente_generador_ejercicios(state: TutorState, llm, retriever) -> TutorState
     docs = retriever.invoke(consulta_rag)
     contexto = "\n\n".join([d.page_content for d in docs])
     historial_texto = formatear_historial(state.get("history", []))
+    pedagogo_activo = state.get("allowed_agents", {}).get("pedagogo", True)
+
+    if not pedagogo_activo:
+        prompt = f"""
+Eres el Agente de Generación de Contenido del tutor de Algoritmia y Programación.
+El Pedagogo Socrático está desactivado por el usuario, por lo tanto debes responder
+directamente al estudiante con un apoyo conceptual basado en ejemplos.
+
+Tu tarea:
+- Da un ejemplo simple y concreto relacionado con el tema.
+- Usa lenguaje de primer ciclo universitario.
+- No entregues código completo.
+- No resuelvas un ejercicio completo.
+- No hagas demasiadas preguntas socráticas; en este modo el estudiante pidió un ejemplo.
+- Cierra con una invitación breve a identificar la idea principal.
+- Máximo 140 palabras.
+
+Contexto del sílabo (RAG):
+{contexto}
+
+Historial:
+{historial_texto}
+
+Resumen diagnóstico:
+{state.get("diagnostic_summary", "")}
+
+Mensaje del estudiante:
+{state["student_message"]}
+
+Respuesta directa con ejemplo:
+"""
+        response = llm.invoke(prompt)
+        contenido = response.content.strip()
+        agents_used.append("generador_ejercicios")
+        agents_trace["generador_ejercicios"] = "activado — respuesta directa con ejemplo"
+
+        return {
+            "generated_exercise": contenido,
+            "final_response": contenido,
+            "rag_context": contexto,
+            "agents_used": agents_used,
+            "agents_trace": agents_trace,
+        }
 
     prompt = f"""
 Eres el Agente de Generación de Contenido y Ejercicios.

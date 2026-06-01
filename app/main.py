@@ -52,19 +52,23 @@ def health():
 
 
 @app.route("/chat", methods=["POST"])
+@app.route("/api/chat", methods=["POST"])
 def chat():
     try:
         data = request.get_json()
-        pregunta = data.get("mensaje", "").strip()
+        pregunta = (data.get("message") or data.get("mensaje") or "").strip()
+        allowed_agents = data.get("allowed_agents", {})
         if not pregunta:
             return jsonify({"error": "Mensaje vacío"}), 400
 
         agente_fn = obtener_agente()
-        resultado = agente_fn(pregunta)
+        resultado = agente_fn(pregunta, allowed_agents)
         return jsonify(
             {
                 "respuesta": resultado["respuesta"],
+                "response": resultado["respuesta"],
                 "agents_trace": resultado.get("agents_trace", {}),
+                "executed_agents": resultado.get("executed_agents", []),
             }
         )
     except Exception as e:

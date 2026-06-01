@@ -3,6 +3,7 @@ from typing import TypedDict
 
 class TutorState(TypedDict, total=False):
     student_message: str
+    allowed_agents: dict[str, bool]
     history: list[dict[str, str]]
     route: str
     route_reason: str

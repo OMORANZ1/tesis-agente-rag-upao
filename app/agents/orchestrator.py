@@ -36,8 +36,6 @@ BLOQUEO_FRASES = (
     "no sé",
     "no se",
     "no entiendo",
-    "explícame",
-    "explicame",
     "no puedo",
     "ayúdame",
     "ayudame",
@@ -59,6 +57,17 @@ PROGRESO_FRASES = (
     "la condicion",
     "contador",
     "repeticiones",
+)
+GENERADOR_FRASES = (
+    "ejemplo",
+    "ejemplos",
+    "ejercicio",
+    "ejercicios",
+    "práctica",
+    "practica",
+    "caso",
+    "analogía",
+    "analogia",
 )
 
 
@@ -83,6 +92,11 @@ def _detectar_progreso(mensaje: str, bloqueo: bool) -> str:
     return "sin_evidencia"
 
 
+def _detectar_solicitud_contenido(mensaje: str) -> bool:
+    texto = (mensaje or "").lower()
+    return any(frase in texto for frase in GENERADOR_FRASES)
+
+
 def _limitar_texto(texto: str, max_chars: int = 1400) -> str:
     if len(texto) <= max_chars:
         return texto
@@ -91,11 +105,13 @@ def _limitar_texto(texto: str, max_chars: int = 1400) -> str:
 
 def agente_orquestador(state: TutorState, llm) -> TutorState:
     history = state.get("history", [])
+    allowed_agents = state.get("allowed_agents", {})
     historial_texto = _limitar_texto(formatear_historial(history[-6:]))
     has_code = detectar_codigo(state["student_message"])
     out_of_syllabus = detectar_fuera_silabo(state["student_message"])
     bloqueo = _detectar_bloqueo(state["student_message"])
     frustracion_actual = _detectar_frustracion_actual(state["student_message"])
+    solicitud_contenido = _detectar_solicitud_contenido(state["student_message"])
     progreso_local = _detectar_progreso(state["student_message"], bloqueo)
 
     prompt = f"""
@@ -120,14 +136,21 @@ Criterios de activación (en orden de prioridad para el flujo):
    hubo frustración.
 2. Especialista Técnico si el mensaje contiene código, pseudocódigo o lógica concreta.
 3. Generador de Ejercicios si hay vacío conceptual persistente (más de 3 intentos
-   en el mismo tema sin avance aparente).
+   en el mismo tema sin avance aparente) o si el estudiante solicita un ejemplo,
+   ejercicio, analogía o caso práctico.
 4. Siempre al final el Pedagogo Socrático integrará todo y dará la respuesta visible.
 
 Indicador local de código detectado: {has_code}
 Indicador local de fuera de sílabo detectado: {out_of_syllabus}
 Indicador local de bloqueo detectado: {bloqueo}
 Indicador local de frustración emocional explícita detectada: {frustracion_actual}
+Indicador local de solicitud de ejemplo/contenido detectada: {solicitud_contenido}
 Indicador local de progreso del estudiante: {progreso_local}
+Agentes permitidos por el usuario:
+- motivador: {allowed_agents.get("motivador", True)}
+- especialista técnico: {allowed_agents.get("tecnico", True)}
+- generador de ejercicios: {allowed_agents.get("generador", True)}
+- pedagogo socrático: {allowed_agents.get("pedagogo", True)}
 
 Devuelve SOLO JSON válido:
 {{
@@ -212,8 +235,14 @@ Mensaje actual del estudiante:
     activate_motivator = frustracion_actual
     activate_technical = has_code
     activate_exercise_generator = bool(data.get("activate_exercise_generator")) or (
-        attempt_count > 3
+        attempt_count > 3 or solicitud_contenido
     )
+    if not allowed_agents.get("motivador", True):
+        activate_motivator = False
+    if not allowed_agents.get("tecnico", True):
+        activate_technical = False
+    if not allowed_agents.get("generador", True):
+        activate_exercise_generator = False
 
     route = data.get("route", "ruta_pedagogica_principal")
     route_reason = data.get("route_reason", "Planificación pedagógica estándar.")
@@ -235,14 +264,26 @@ Mensaje actual del estudiante:
             f"Bloqueo: {'sí' if bloqueo else 'no'} | "
             f"Progreso: {student_progress}"
         ),
-        "motivador": "activado" if activate_motivator else "no activado",
+        "motivador": (
+            "desactivado por el usuario"
+            if not allowed_agents.get("motivador", True)
+            else "activado" if activate_motivator else "no activado"
+        ),
         "especialista_tecnico": (
-            "activado" if activate_technical else "no activado"
+            "desactivado por el usuario"
+            if not allowed_agents.get("tecnico", True)
+            else "activado" if activate_technical else "no activado"
         ),
         "generador_ejercicios": (
-            "activado" if activate_exercise_generator else "no activado"
+            "desactivado por el usuario"
+            if not allowed_agents.get("generador", True)
+            else "activado" if activate_exercise_generator else "no activado"
         ),
-        "pedagogo_socratico": "pendiente",
+        "pedagogo_socratico": (
+            "pendiente"
+            if allowed_agents.get("pedagogo", True)
+            else "desactivado por el usuario"
+        ),
     }
 
     return {

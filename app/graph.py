@@ -18,27 +18,66 @@ except ImportError:
     from state import TutorState
 
 
+def _agent_allowed(state: TutorState, agent_name: str) -> bool:
+    allowed_agents = state.get("allowed_agents", {})
+    return bool(allowed_agents.get(agent_name, True))
+
+
 def _siguiente_agente(state: TutorState) -> str:
     if state.get("out_of_syllabus") or state.get("route") == "fuera_silabo":
         return "fuera_silabo"
-    if state.get("activate_motivator") and "motivador" not in state.get(
+    if (
+        _agent_allowed(state, "motivador")
+        and state.get("activate_motivator")
+        and "motivador" not in state.get(
         "agents_used", []
+        )
     ):
         return "motivador"
-    if state.get("activate_technical") and "especialista_tecnico" not in state.get(
-        "agents_used", []
+    if (
+        _agent_allowed(state, "tecnico")
+        and state.get("activate_technical")
+        and "especialista_tecnico" not in state.get("agents_used", [])
     ):
         return "especialista_tecnico"
     exercise_pending = "generador_ejercicios" not in state.get("agents_used", [])
-    if state.get("activate_exercise_generator") and exercise_pending:
+    if (
+        _agent_allowed(state, "generador")
+        and state.get("activate_exercise_generator")
+        and exercise_pending
+    ):
         return "generador_ejercicios"
+    if not _agent_allowed(state, "pedagogo"):
+        return "respuesta_configuracion"
     return "pedagogo_socratico"
+
+
+def respuesta_configuracion(state: TutorState) -> TutorState:
+    agents_trace = dict(state.get("agents_trace", {}))
+    agents_trace["pedagogo_socratico"] = "desactivado por el usuario"
+    if state.get("generated_exercise"):
+        return {
+            "final_response": state["generated_exercise"],
+            "agents_trace": agents_trace,
+            "agents_used": list(state.get("agents_used", [])),
+        }
+
+    return {
+        "final_response": (
+            "El Pedagogo Socrático está desactivado. Para continuar, activa el "
+            "Pedagogo Socrático o el Generador de Contenido si deseas recibir un "
+            "ejemplo conceptual."
+        ),
+        "agents_trace": agents_trace,
+        "agents_used": list(state.get("agents_used", [])),
+    }
 
 
 def construir_grafo(llm, retriever, system_prompt: str):
     workflow = StateGraph(TutorState)
 
     workflow.add_node("orquestador", lambda state: agente_orquestador(state, llm))
+    workflow.add_node("respuesta_configuracion", respuesta_configuracion)
     workflow.add_node("fuera_silabo", agente_fuera_silabo)
     workflow.add_node("motivador", lambda state: agente_motivador(state, llm))
     workflow.add_node(
@@ -66,6 +105,7 @@ def construir_grafo(llm, retriever, system_prompt: str):
             "especialista_tecnico": "especialista_tecnico",
             "generador_ejercicios": "generador_ejercicios",
             "pedagogo_socratico": "pedagogo_socratico",
+            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
     workflow.add_conditional_edges(
@@ -75,6 +115,7 @@ def construir_grafo(llm, retriever, system_prompt: str):
             "especialista_tecnico": "especialista_tecnico",
             "generador_ejercicios": "generador_ejercicios",
             "pedagogo_socratico": "pedagogo_socratico",
+            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
     workflow.add_conditional_edges(
@@ -83,10 +124,19 @@ def construir_grafo(llm, retriever, system_prompt: str):
         {
             "generador_ejercicios": "generador_ejercicios",
             "pedagogo_socratico": "pedagogo_socratico",
+            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
-    workflow.add_edge("generador_ejercicios", "pedagogo_socratico")
+    workflow.add_conditional_edges(
+        "generador_ejercicios",
+        _siguiente_agente,
+        {
+            "pedagogo_socratico": "pedagogo_socratico",
+            "respuesta_configuracion": "respuesta_configuracion",
+        },
+    )
     workflow.add_edge("pedagogo_socratico", END)
     workflow.add_edge("fuera_silabo", END)
+    workflow.add_edge("respuesta_configuracion", END)
 
     return workflow.compile()

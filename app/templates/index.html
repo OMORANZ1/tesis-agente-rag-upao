@@ -5,57 +5,338 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tutor Socrático - Algoritmia y Programación UPAO</title>
     <style>
+        :root {
+            --bg: #f3f6fb;
+            --surface: #ffffff;
+            --surface-soft: #f8fafc;
+            --surface-muted: #eef3f8;
+            --border: #d7deea;
+            --border-strong: #bec9d8;
+            --text: #141c2f;
+            --muted: #667085;
+            --brand: #1f3a7a;
+            --brand-2: #2563c8;
+            --brand-soft: #edf4ff;
+            --agent-green: #16a34a;
+            --agent-green-soft: #e9f9f0;
+            --warning-soft: #fff7ed;
+            --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+            --shadow-md: 0 14px 36px rgba(20, 28, 47, 0.10);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: Arial, sans-serif;
-            background: #f0f2f5;
+            font-family: Inter, "Segoe UI", Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
+        }
+
+        #app-shell {
+            display: flex;
+            height: 100vh;
+            min-height: 0;
+            padding: 16px;
+            gap: 16px;
+        }
+
+        #agents-sidebar {
+            width: 326px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 18px 16px;
+            overflow-y: auto;
+            box-shadow: var(--shadow-md);
+        }
+
+        #agents-sidebar h2 {
+            font-size: 17px;
+            color: var(--brand);
+            margin-bottom: 6px;
+            letter-spacing: 0;
+        }
+
+        .sidebar-help {
+            font-size: 12.5px;
+            color: var(--muted);
+            line-height: 1.45;
+            margin-bottom: 16px;
+        }
+
+        .agent-legend {
+            display: grid;
+            gap: 7px;
+            margin: 0 0 16px 0;
+            padding: 11px;
+            background: var(--surface-soft);
+            border: 1px solid #e5ebf3;
+            border-radius: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #526071;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 1px solid var(--border-strong);
+            background: #ffffff;
+        }
+
+        .legend-dot.off {
+            background: #a8b3c2;
+            opacity: 0.65;
+        }
+
+        .legend-dot.active {
+            background: var(--agent-green);
+            border-color: var(--agent-green);
+            box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.14);
+        }
+
+        .agent-card {
+            position: relative;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            transition: border-color 0.2s ease, background 0.2s ease, opacity 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+        }
+
+        .agent-card::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: #c8d2e1;
+        }
+
+        .agent-card:hover {
+            transform: translateY(-1px);
+            border-color: var(--border-strong);
+            box-shadow: 0 8px 20px rgba(20, 28, 47, 0.08);
+        }
+
+        .agent-card.state-inactive-gray {
+            opacity: 0.5;
+            filter: grayscale(100%);
+        }
+
+        .agent-card.state-active-green {
+            background: var(--agent-green-soft);
+            border-color: var(--agent-green);
+            box-shadow: 0 0 0 2px rgba(21, 184, 106, 0.16), 0 8px 22px rgba(21, 184, 106, 0.14);
+            animation: agenteActivo 1.4s ease-in-out infinite;
+        }
+
+        .agent-card.state-active-green::before {
+            background: var(--agent-green);
+        }
+
+        @keyframes agenteActivo {
+            0%, 100% { box-shadow: 0 0 0 2px rgba(21, 184, 106, 0.16), 0 8px 22px rgba(21, 184, 106, 0.14); }
+            50% { box-shadow: 0 0 0 5px rgba(21, 184, 106, 0.08), 0 8px 22px rgba(21, 184, 106, 0.14); }
+        }
+
+        .agent-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .agent-title {
+            display: flex;
+            align-items: center;
+            gap: 9px;
+            min-width: 0;
+        }
+
+        .agent-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--brand);
+            background: var(--brand-soft);
+            border: 1px solid #d8e6fb;
+        }
+
+        .agent-avatar.orquestador { color: #1f3a7a; background: #edf4ff; }
+        .agent-avatar.pedagogo { color: #047857; background: #ecfdf3; border-color: #bbf7d0; }
+        .agent-avatar.tecnico { color: #0369a1; background: #eff6ff; border-color: #bfdbfe; }
+        .agent-avatar.generador { color: #9a3412; background: var(--warning-soft); border-color: #fed7aa; }
+        .agent-avatar.motivador { color: #be123c; background: #fff1f2; border-color: #fecdd3; }
+
+        .agent-name {
+            font-size: 14.5px;
+            font-weight: 700;
+            color: var(--text);
+            overflow-wrap: anywhere;
+        }
+
+        .agent-description {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.35;
+            margin-top: 7px;
+        }
+
+        .agent-fixed-badge {
+            background: #e8f1ff;
+            color: var(--brand);
+            border: 1px solid #c9dcfb;
+            border-radius: 8px;
+            padding: 5px 9px;
+            font-size: 11px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 40px;
+            height: 22px;
+            flex: 0 0 auto;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background: #c7cfda;
+            border-radius: 999px;
+            transition: 0.2s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.2s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.25);
+        }
+
+        .switch input:checked + .slider {
+            background: linear-gradient(135deg, var(--brand), var(--brand-2));
+        }
+
+        .switch input:checked + .slider:before {
+            transform: translateX(18px);
+        }
+
+        #chat-main {
+            flex: 1;
+            min-width: 0;
+            height: calc(100vh - 32px);
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface);
+            box-shadow: var(--shadow-md);
         }
 
         header {
-            background: #1a237e;
-            color: white;
-            padding: 16px 24px;
+            background: var(--surface);
+            color: var(--text);
+            padding: 18px 22px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            border-bottom: 1px solid var(--border);
+            gap: 14px;
         }
 
         header h1 {
-            font-size: 18px;
-            font-weight: 600;
+            font-size: 20px;
+            font-weight: 750;
+            letter-spacing: 0;
         }
 
         header p {
             font-size: 13px;
-            opacity: 0.8;
-            margin-top: 2px;
+            color: var(--muted);
+            margin-top: 3px;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
+        }
+
+        .system-badge {
+            background: #ecfdf3;
+            color: #047857;
+            border: 1px solid #bbf7d0;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 12px;
+            font-weight: 800;
         }
 
         #btn-reiniciar {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.4);
-            padding: 8px 16px;
-            border-radius: 6px;
+            background: var(--surface-soft);
+            color: var(--brand);
+            border: 1px solid var(--border);
+            padding: 9px 15px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 13px;
+            font-weight: 700;
+            transition: background 0.2s ease, transform 0.2s ease;
         }
 
         #btn-reiniciar:hover {
-            background: rgba(255,255,255,0.3);
+            background: var(--brand-soft);
+            border-color: #c9dcfb;
+            transform: translateY(-1px);
         }
 
         #chat-container {
             flex: 1;
             overflow-y: auto;
-            padding: 24px;
+            padding: 28px;
             display: flex;
             flex-direction: column;
             gap: 16px;
+            background: linear-gradient(180deg, #f8fafc 0%, #f3f6fb 100%);
         }
 
         .mensaje-wrapper {
@@ -72,49 +353,53 @@
         }
 
         .mensaje {
-            padding: 12px 16px;
-            border-radius: 12px;
+            padding: 13px 16px;
+            border-radius: 8px;
             font-size: 15px;
             line-height: 1.5;
             white-space: pre-wrap;
         }
 
         .mensaje.usuario {
-            background: #1a237e;
+            background: var(--brand);
             color: white;
-            border-bottom-right-radius: 4px;
+            border-bottom-right-radius: 3px;
+            box-shadow: 0 8px 20px rgba(31, 58, 122, 0.18);
         }
 
         .mensaje.agente {
             background: white;
-            color: #333;
-            border-bottom-left-radius: 4px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            color: var(--text);
+            border-bottom-left-radius: 3px;
+            border: 1px solid #e5ebf3;
+            box-shadow: 0 8px 22px rgba(20,28,47,0.07);
         }
 
         .mensaje.sistema {
-            background: #e8f5e9;
-            color: #2e7d32;
+            background: #ecfdf3;
+            color: #067647;
             align-self: center;
             font-size: 13px;
-            padding: 8px 16px;
-            border-radius: 20px;
+            padding: 9px 16px;
+            border-radius: 999px;
+            border: 1px solid #abefc6;
             max-width: 90%;
         }
 
         .trace-panel {
-            background: #f5f5f5;
-            border: 1px solid #e0e0e0;
+            background: rgba(248,250,252,0.96);
+            border: 1px solid #dce5f0;
             border-radius: 8px;
             font-size: 12px;
-            color: #444;
+            color: #475467;
+            box-shadow: var(--shadow-sm);
         }
 
         .trace-panel summary {
             cursor: pointer;
             padding: 8px 12px;
             font-weight: 600;
-            color: #1a237e;
+            color: var(--brand);
             list-style: none;
         }
 
@@ -140,47 +425,58 @@
         }
 
         #input-area {
-            background: white;
-            padding: 16px 24px;
+            background: var(--surface);
+            padding: 16px 18px;
             display: flex;
             gap: 12px;
-            border-top: 1px solid #e0e0e0;
+            border-top: 1px solid var(--border);
         }
 
         #input-mensaje {
             flex: 1;
-            padding: 12px 16px;
-            border: 1px solid #ddd;
+            padding: 13px 16px;
+            border: 1px solid #cfd8e6;
             border-radius: 8px;
             font-size: 15px;
             outline: none;
             resize: none;
-            height: 48px;
-            font-family: Arial, sans-serif;
+            height: 50px;
+            font-family: inherit;
+            background: #f8fafc;
+            color: var(--text);
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
         }
 
         #input-mensaje:focus {
-            border-color: #1a237e;
+            border-color: var(--brand-2);
+            background: #ffffff;
+            box-shadow: 0 0 0 3px rgba(31,111,209,0.12);
         }
 
         #btn-enviar {
-            background: #1a237e;
+            background: var(--brand);
             color: white;
             border: none;
             padding: 0 24px;
             border-radius: 8px;
             cursor: pointer;
             font-size: 15px;
-            font-weight: 600;
+            font-weight: 750;
+            box-shadow: 0 8px 18px rgba(18,60,140,0.18);
+            transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease;
         }
 
         #btn-enviar:hover {
-            background: #283593;
+            transform: translateY(-1px);
+            background: var(--brand-2);
+            box-shadow: 0 10px 22px rgba(31,58,122,0.24);
         }
 
         #btn-enviar:disabled {
-            background: #9e9e9e;
+            background: #98a2b3;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .cargando {
@@ -189,8 +485,9 @@
             align-items: center;
             padding: 12px 16px;
             background: white;
-            border-radius: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            border: 1px solid #e5ebf3;
+            box-shadow: 0 8px 22px rgba(20,28,47,0.07);
         }
 
         .punto {
@@ -208,10 +505,109 @@
             0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
             40% { transform: scale(1.2); opacity: 1; }
         }
+
+        @media (max-width: 900px) {
+            #app-shell {
+                flex-direction: column;
+                padding: 0;
+                gap: 0;
+            }
+
+            #agents-sidebar {
+                width: 100%;
+                max-height: 250px;
+                border-radius: 0;
+                border-left: 0;
+                border-right: 0;
+            }
+
+            #chat-main {
+                height: calc(100vh - 250px);
+                border-radius: 0;
+                border-left: 0;
+                border-right: 0;
+            }
+
+            header {
+                padding: 14px 16px;
+                align-items: flex-start;
+            }
+
+            header h1 {
+                font-size: 16px;
+            }
+
+            header p {
+                display: none;
+            }
+
+            .system-badge {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body>
 
+<div id="app-shell">
+<aside id="agents-sidebar">
+    <h2>Agentes del sistema</h2>
+    <p class="sidebar-help">Activa o desactiva los roles antes de enviar un mensaje. En verde se muestran los agentes usados en la última respuesta.</p>
+
+    <div class="agent-card" id="card-orquestador">
+        <div class="agent-card-header">
+            <span class="agent-name">🔍 Orquestador</span>
+            <span class="agent-fixed-badge">Siempre activo</span>
+        </div>
+        <div class="agent-description">Clasifica la consulta y decide la ruta del grafo.</div>
+    </div>
+
+    <div class="agent-card" id="card-pedagogo">
+        <div class="agent-card-header">
+            <span class="agent-name">📚 Pedagogo Socrático</span>
+            <label class="switch">
+                <input type="checkbox" checked onchange="toggleAgentUISwitch('pedagogo', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="agent-description">Integra el contexto y genera la respuesta final guiada.</div>
+    </div>
+
+    <div class="agent-card" id="card-tecnico">
+        <div class="agent-card-header">
+            <span class="agent-name">🔬 Especialista Técnico</span>
+            <label class="switch">
+                <input type="checkbox" checked onchange="toggleAgentUISwitch('tecnico', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="agent-description">Analiza código, pseudocódigo o lógica concreta.</div>
+    </div>
+
+    <div class="agent-card" id="card-generador">
+        <div class="agent-card-header">
+            <span class="agent-name">📝 Generador de Contenido</span>
+            <label class="switch">
+                <input type="checkbox" checked onchange="toggleAgentUISwitch('generador', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="agent-description">Propone ejercicios o apoyos cuando hay varios intentos.</div>
+    </div>
+
+    <div class="agent-card" id="card-motivador">
+        <div class="agent-card-header">
+            <span class="agent-name">💪 Apoyo Afectivo</span>
+            <label class="switch">
+                <input type="checkbox" checked onchange="toggleAgentUISwitch('motivador', this.checked)">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <div class="agent-description">Interviene ante frustración o desmotivación explícita.</div>
+    </div>
+</aside>
+
+<main id="chat-main">
 <header>
     <div>
         <h1>🎓 Tutor Socrático — Algoritmia y Programación</h1>
@@ -235,11 +631,53 @@
     ></textarea>
     <button id="btn-enviar" onclick="enviarMensaje()">Enviar</button>
 </div>
+</main>
+</div>
 
 <script>
     const chatContainer = document.getElementById('chat-container');
     const inputMensaje = document.getElementById('input-mensaje');
     const btnEnviar = document.getElementById('btn-enviar');
+    const active_agents_config = {
+        orquestador: true,
+        pedagogo: true,
+        tecnico: true,
+        generador: true,
+        motivador: true
+    };
+
+    window.active_agents_config = active_agents_config;
+
+    function resetAgentActivity() {
+        document.querySelectorAll('.agent-card').forEach(card => {
+            card.classList.remove('state-active-green');
+        });
+    }
+
+    function toggleAgentUISwitch(agentName, isChecked) {
+        active_agents_config[agentName] = isChecked;
+        const agentElement = document.getElementById(`card-${agentName}`);
+        if (!agentElement) return;
+
+        agentElement.classList.remove('state-active-green');
+        if (!isChecked) {
+            agentElement.classList.add('state-inactive-gray');
+        } else {
+            agentElement.classList.remove('state-inactive-gray');
+        }
+    }
+
+    function handleBotResponse(data) {
+        agregarRespuestaAgente(data.response || data.respuesta, data.agents_trace);
+
+        resetAgentActivity();
+        (data.executed_agents || []).forEach(agentName => {
+            const agentElement = document.getElementById(`card-${agentName}`);
+            if (agentElement && active_agents_config[agentName]) {
+                agentElement.classList.add('state-active-green');
+            }
+        });
+    }
 
     function agregarMensaje(texto, tipo) {
         const wrapper = document.createElement('div');
@@ -329,13 +767,18 @@
         agregarMensaje(mensaje, 'usuario');
         inputMensaje.value = '';
         btnEnviar.disabled = true;
+        resetAgentActivity();
         mostrarCargando();
 
         try {
             const respuesta = await fetch('/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ mensaje })
+                body: JSON.stringify({
+                    message: mensaje,
+                    session_id: 'local-session',
+                    allowed_agents: active_agents_config
+                })
             });
 
             const data = await respuesta.json();
@@ -347,7 +790,7 @@
                 div.textContent = 'Error: ' + data.error;
                 chatContainer.appendChild(div);
             } else {
-                agregarRespuestaAgente(data.respuesta, data.agents_trace);
+                handleBotResponse(data);
             }
 
         } catch (error) {
@@ -364,6 +807,7 @@
 
     async function reiniciarSesion() {
         await fetch('/reiniciar', { method: 'POST' });
+        resetAgentActivity();
         chatContainer.innerHTML = '';
         const div = document.createElement('div');
         div.className = 'mensaje sistema';
