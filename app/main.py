@@ -11,7 +11,7 @@ try:
     from .services.progress_service import obtener_progreso, TEMAS_ETIQUETAS
 except ImportError:
     import config  # noqa: F401
-    from agent import crear_agente, reiniciar_historials
+    from agent import crear_agente, reiniciar_historial
     from services.progress_service import obtener_progreso, TEMAS_ETIQUETAS
 
 app = Flask(__name__)
