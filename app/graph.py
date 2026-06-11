@@ -4,7 +4,7 @@ try:
     from .agents.exercise_generator import agente_generador_ejercicios
     from .agents.motivational import agente_motivador
     from .agents.orchestrator import agente_orquestador
-    from .agents.out_of_syllabus import agente_fuera_silabo
+    from .agents.quality_evaluator import agente_evaluador_calidad
     from .agents.socratic import agente_pedagogo_socratico
     from .agents.technical import agente_especialista_tecnico
     from .state import TutorState
@@ -12,131 +12,104 @@ except ImportError:
     from agents.exercise_generator import agente_generador_ejercicios
     from agents.motivational import agente_motivador
     from agents.orchestrator import agente_orquestador
-    from agents.out_of_syllabus import agente_fuera_silabo
+    from agents.quality_evaluator import agente_evaluador_calidad
     from agents.socratic import agente_pedagogo_socratico
     from agents.technical import agente_especialista_tecnico
     from state import TutorState
 
 
-def _agent_allowed(state: TutorState, agent_name: str) -> bool:
-    allowed_agents = state.get("allowed_agents", {})
-    return bool(allowed_agents.get(agent_name, True))
+def _seleccionado(state: TutorState, agent_name: str) -> bool:
+    return agent_name in state.get("agentes_seleccionados", [])
 
 
-def _siguiente_agente(state: TutorState) -> str:
-    if state.get("out_of_syllabus") or state.get("route") == "fuera_silabo":
-        return "fuera_silabo"
-    if (
-        _agent_allowed(state, "motivador")
-        and state.get("activate_motivator")
-        and "motivador" not in state.get(
-        "agents_used", []
-        )
-    ):
+def _despues_orquestador(state: TutorState) -> str:
+    if _seleccionado(state, "motivador") and state.get("activate_motivator"):
         return "motivador"
-    if (
-        _agent_allowed(state, "tecnico")
-        and state.get("activate_technical")
-        and "especialista_tecnico" not in state.get("agents_used", [])
-    ):
-        return "especialista_tecnico"
-    exercise_pending = "generador_ejercicios" not in state.get("agents_used", [])
-    if (
-        _agent_allowed(state, "generador")
-        and state.get("activate_exercise_generator")
-        and exercise_pending
-    ):
+    if _seleccionado(state, "generador") and state.get("activate_exercise_generator"):
         return "generador_ejercicios"
-    if not _agent_allowed(state, "pedagogo"):
-        return "respuesta_configuracion"
+    if _seleccionado(state, "especialista") and state.get("activate_technical"):
+        return "especialista_tecnico"
     return "pedagogo_socratico"
 
 
-def respuesta_configuracion(state: TutorState) -> TutorState:
-    agents_trace = dict(state.get("agents_trace", {}))
-    agents_trace["pedagogo_socratico"] = "desactivado por el usuario"
-    if state.get("generated_exercise"):
-        return {
-            "final_response": state["generated_exercise"],
-            "agents_trace": agents_trace,
-            "agents_used": list(state.get("agents_used", [])),
-        }
+def _despues_motivador(state: TutorState) -> str:
+    if _seleccionado(state, "generador") and state.get("activate_exercise_generator"):
+        return "generador_ejercicios"
+    if _seleccionado(state, "especialista") and state.get("activate_technical"):
+        return "especialista_tecnico"
+    return "pedagogo_socratico"
 
-    return {
-        "final_response": (
-            "El Pedagogo Socrático está desactivado. Para continuar, activa el "
-            "Pedagogo Socrático o el Generador de Contenido si deseas recibir un "
-            "ejemplo conceptual."
-        ),
-        "agents_trace": agents_trace,
-        "agents_used": list(state.get("agents_used", [])),
-    }
+
+def _despues_generador(state: TutorState) -> str:
+    if _seleccionado(state, "especialista") and state.get("activate_technical"):
+        return "especialista_tecnico"
+    return "pedagogo_socratico"
+
+
+def _despues_evaluador(state: TutorState) -> str:
+    if state.get("quality_approved"):
+        return END
+    if state.get("quality_regen_count", 0) >= 2:
+        return END
+    return "pedagogo_socratico"
 
 
 def construir_grafo(llm, retriever, system_prompt: str):
     workflow = StateGraph(TutorState)
 
-    workflow.add_node("orquestador", lambda state: agente_orquestador(state, llm))
-    workflow.add_node("respuesta_configuracion", respuesta_configuracion)
-    workflow.add_node("fuera_silabo", agente_fuera_silabo)
-    workflow.add_node("motivador", lambda state: agente_motivador(state, llm))
-    workflow.add_node(
-        "especialista_tecnico",
-        lambda state: agente_especialista_tecnico(state, llm),
-    )
+    workflow.add_node("orquestador", lambda state: agente_orquestador(state, retriever))
+    workflow.add_node("motivador", agente_motivador)
     workflow.add_node(
         "generador_ejercicios",
-        lambda state: agente_generador_ejercicios(state, llm, retriever),
+        lambda state: agente_generador_ejercicios(state, retriever),
+    )
+    workflow.add_node(
+        "especialista_tecnico",
+        lambda state: agente_especialista_tecnico(state, retriever),
     )
     workflow.add_node(
         "pedagogo_socratico",
-        lambda state: agente_pedagogo_socratico(
-            state, llm, retriever, system_prompt
-        ),
+        lambda state: agente_pedagogo_socratico(state, retriever, system_prompt),
     )
+    workflow.add_node("quality_evaluator", agente_evaluador_calidad)
 
     workflow.set_entry_point("orquestador")
     workflow.add_conditional_edges(
         "orquestador",
-        _siguiente_agente,
+        _despues_orquestador,
         {
-            "fuera_silabo": "fuera_silabo",
             "motivador": "motivador",
-            "especialista_tecnico": "especialista_tecnico",
             "generador_ejercicios": "generador_ejercicios",
+            "especialista_tecnico": "especialista_tecnico",
             "pedagogo_socratico": "pedagogo_socratico",
-            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
     workflow.add_conditional_edges(
         "motivador",
-        _siguiente_agente,
+        _despues_motivador,
         {
+            "generador_ejercicios": "generador_ejercicios",
             "especialista_tecnico": "especialista_tecnico",
-            "generador_ejercicios": "generador_ejercicios",
             "pedagogo_socratico": "pedagogo_socratico",
-            "respuesta_configuracion": "respuesta_configuracion",
-        },
-    )
-    workflow.add_conditional_edges(
-        "especialista_tecnico",
-        _siguiente_agente,
-        {
-            "generador_ejercicios": "generador_ejercicios",
-            "pedagogo_socratico": "pedagogo_socratico",
-            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
     workflow.add_conditional_edges(
         "generador_ejercicios",
-        _siguiente_agente,
+        _despues_generador,
         {
+            "especialista_tecnico": "especialista_tecnico",
             "pedagogo_socratico": "pedagogo_socratico",
-            "respuesta_configuracion": "respuesta_configuracion",
         },
     )
-    workflow.add_edge("pedagogo_socratico", END)
-    workflow.add_edge("fuera_silabo", END)
-    workflow.add_edge("respuesta_configuracion", END)
+    workflow.add_edge("especialista_tecnico", "pedagogo_socratico")
+    workflow.add_edge("pedagogo_socratico", "quality_evaluator")
+    workflow.add_conditional_edges(
+        "quality_evaluator",
+        _despues_evaluador,
+        {
+            END: END,
+            "pedagogo_socratico": "pedagogo_socratico",
+        },
+    )
 
     return workflow.compile()

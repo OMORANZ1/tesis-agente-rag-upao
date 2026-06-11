@@ -3,12 +3,16 @@ import unicodedata
 
 try:
     from ..config import ALLOWED_TOPICS
+    from ..services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
     from ..services.memory_service import registrar_intento
+    from ..services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from ..state import TutorState
     from ..utils import formatear_historial
 except ImportError:
     from config import ALLOWED_TOPICS
+    from services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
     from services.memory_service import registrar_intento
+    from services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from state import TutorState
     from utils import formatear_historial
 
@@ -22,13 +26,13 @@ def _extraer_preguntas(texto: str) -> list[str]:
     if preguntas_con_apertura:
         return preguntas_con_apertura
 
-    preguntas_con_apertura_malformada = [
+    preguntas_malformadas = [
         pregunta.strip()
         for pregunta in re.findall(r"\?[^?]+\?", texto or "")
         if pregunta.strip()
     ]
-    if preguntas_con_apertura_malformada:
-        return preguntas_con_apertura_malformada
+    if preguntas_malformadas:
+        return preguntas_malformadas
 
     return [
         pregunta.strip()
@@ -65,158 +69,87 @@ def _limitar_texto(texto: str, max_chars: int) -> str:
     return (texto or "")[-max_chars:]
 
 
-def _pregunta_alternativa(topic: str, preguntas_hechas: list[str]) -> str:
-    opciones = [
-        "¿Cuál es la condición que debe cumplirse para que el ciclo siga repitiéndose?",
-        "¿Qué dato cambia en cada repetición del bucle?",
-        "¿En qué momento debería detenerse el bucle?",
-        "¿Qué parte del problema indica cuántas veces debes repetir una acción?",
-    ]
-    if "while" in topic.lower():
-        opciones = [
-            "¿Cuál es la condición que mantiene activo al while?",
-            "¿Qué tendría que cambiar para que la condición del while deje de cumplirse?",
-            "¿En qué momento debería detenerse ese while?",
-        ]
-    if "for" in topic.lower():
-        opciones = [
-            "¿Cuántas repeticiones necesita hacer ese for?",
-            "¿Qué valor toma el contador en la primera repetición?",
-            "¿Qué cambia en cada vuelta del for?",
-        ]
-
-    for pregunta in opciones:
-        if not _pregunta_repetida(pregunta, preguntas_hechas):
-            return pregunta
-    return "¿Qué paso pequeño podrías revisar primero?"
-
-
-def _respuesta_bloqueo_fallback(
-    topic: str,
-    preguntas_hechas: list[str],
-    generated_exercise: str = "",
-) -> str:
-    topic_lower = topic.lower()
-    if "while" in topic_lower or "bucle" in topic_lower or "ciclo" in topic_lower:
-        pista = (
-            "Vamos por partes: un bucle repite una acción mientras se cumpla una "
-            "condición. En un while, lo más importante es identificar qué condición "
-            "mantiene la repetición y qué cambio hará que se detenga."
-        )
-    elif "for" in topic_lower:
-        pista = (
-            "Bien, bajémoslo a lo esencial: un for se usa cuando puedes anticipar cuántas veces se "
-            "repetirá una acción. El contador cambia en cada vuelta."
-        )
-    elif "variable" in topic_lower:
-        pista = (
-            "La idea base es esta: una variable es un espacio donde guardas un dato que "
-            "puede cambiar durante el algoritmo."
-        )
-    else:
-        pista = (
-            "Probemos con una pista más directa: separa el problema en entrada, proceso y salida. Primero "
-            "ubica qué datos tienes y qué decisión o repetición necesitas controlar."
-        )
-
-    if generated_exercise:
-        pista = (
-            "Empecemos con una versión más simple del ejercicio. "
-            "Primero identifica la condición o dato principal antes de intentar "
-            "resolver todo."
-        )
-
-    return f"{pista}\n\n{_pregunta_alternativa(topic, preguntas_hechas)}"
-
-
-def _instruccion_reconocimiento(state: TutorState) -> str:
-    progress = state.get("student_progress", "sin_evidencia")
-    if progress == "avance_correcto":
-        return (
-            "El estudiante acaba de decir algo correcto. Empieza con un reconocimiento "
-            "breve y natural, por ejemplo: 'Exacto, esa idea va bien.' Luego agrega "
-            "una precisión pequeña y una sola pregunta."
-        )
-    if progress == "avance_parcial":
-        return (
-            "El estudiante mostró avance parcial. Empieza validando la parte correcta "
-            "sin exagerar, por ejemplo: 'Sí, vas bien por ahí.' Luego corrige o completa "
-            "una sola idea y cierra con una pregunta."
-        )
-    if progress == "respuesta_breve":
-        return (
-            "El estudiante respondió de forma breve. Retoma su frase y conviértela en "
-            "avance: 'Bien, esa es una parte.' Luego enfoca el siguiente paso."
-        )
-    return (
-        "No hay evidencia clara de avance en el último mensaje. Mantén un tono cercano "
-        "y evita sonar como plantilla."
-    )
+def _dict_lineas(data: dict, keys: list[str]) -> str:
+    if not data:
+        return "No disponible."
+    return "\n".join(
+        f"- {key}: {data.get(key, '')}"
+        for key in keys
+        if data.get(key)
+    ) or "No disponible."
 
 
 def _tipo_respuesta_socratica(state: TutorState, attempt_count: int) -> str:
+    if state.get("generated_exercise") and state.get("technical_analysis"):
+        return "integración de apoyo, ejercicio y análisis técnico"
     if state.get("generated_exercise"):
-        return "integración con ejercicio personalizado"
-    if state.get("bloqueo"):
-        return "pista directa por bloqueo explícito"
+        return "pregunta desde ejercicio práctico"
     if state.get("technical_analysis"):
-        return "guía socrática sobre código/lógica"
-    if attempt_count >= 4:
-        return "ejercicio simple por vacío conceptual persistente"
-    if attempt_count == 3:
-        return "pista conceptual directa"
-    if attempt_count == 2:
-        return "pregunta socrática específica"
-    if state.get("motivational_message"):
-        return "apoyo afectivo + preguntas orientadoras"
-    return "pregunta socrática amplia"
+        return "pregunta técnicamente precisa"
+    if state.get("bloqueo") or attempt_count >= 4:
+        return "pista directa conceptual"
+    return "pregunta socrática basada en RAG"
+
+
+def _instruccion_modo(state: TutorState, attempt_count: int) -> str:
+    modo = state.get("modo_aprendizaje", "socratico")
+    if modo == "tutorial":
+        return (
+            "Modo tutorial: puedes dar una explicación breve y un ejemplo conceptual, "
+            "pero siempre termina con exactamente UNA pregunta de verificación."
+        )
+    if modo == "reto":
+        if attempt_count <= 2:
+            return (
+                "Modo reto: da pistas mínimas. No expliques directamente. "
+                "Formula una pregunta que guíe sin revelar la solución."
+            )
+        return (
+            "Modo reto (más de 2 intentos): puedes dar una pista progresiva, "
+            "pero sigue sin dar la solución completa."
+        )
+    return (
+        "Modo socrático: solo preguntas orientadoras. "
+        "NUNCA des explicaciones directas ni soluciones."
+    )
 
 
 def _instruccion_progresiva(state: TutorState, attempt_count: int) -> str:
     if attempt_count >= 4:
         return (
-            "Intento 4 o superior: el estudiante necesita reforzar la base. "
-            "Presenta un ejercicio más simple o modular si está disponible, da una "
-            "pista inicial concreta y cierra con exactamente UNA pregunta breve para "
-            "que identifique el primer paso. No resuelvas el ejercicio."
-        )
-
-    if state.get("bloqueo"):
-        return (
-            "Bloqueo explícito detectado: el estudiante pidió ayuda directa o dijo "
-            "que no entiende. No sigas solo con preguntas abiertas. Da una pista "
-            "conceptual concreta, breve y accionable, sin código resuelto ni solución "
-            "completa. Cierra con exactamente UNA pregunta específica de verificación. "
-            "No uses siempre la etiqueta 'Pista concreta:'; úsala solo si ayuda."
-        )
-
-    if attempt_count == 1:
-        return (
-            "Intento 1: formula una pregunta socrática amplia para activar reflexión "
-            "general. No des la respuesta directa."
-        )
-    if attempt_count == 2:
-        return (
-            "Intento 2: formula una pregunta socrática específica que enfoque al "
-            "estudiante en el concepto clave. Evita repetir la pregunta del intento 1."
+            "Intento 4 o superior: da una pista conceptual directa, sin código ni "
+            "solución completa. Luego formula exactamente una pregunta de verificación."
         )
     if attempt_count == 3:
         return (
-            "Intento 3: da una pista conceptual directa, sin código, más concreta que "
-            "antes. Cierra con exactamente UNA pregunta específica."
+            "Intento 3: usa la pista_inicial del ejercicio si existe y formula una "
+            "pregunta específica."
         )
-
     return (
-        "Guía con una sola pregunta orientadora y una pista mínima. No des la "
-        "respuesta directa."
+        "Intentos 1-2: formula una pregunta socrática amplia, salvo que haya análisis "
+        "técnico o ejercicio activo; en ese caso hazla más precisa."
     )
+
+
+def _pregunta_alternativa(state: TutorState, preguntas_hechas: list[str]) -> str:
+    analysis = state.get("technical_analysis", {})
+    pregunta_tecnica = analysis.get("pregunta_tecnica_sugerida") if analysis else ""
+    opciones = [
+        pregunta_tecnica,
+        "¿Qué dato o condición controla el siguiente paso del algoritmo?",
+        "¿Qué parte del problema indica cuándo repetir o cuándo detenerse?",
+        "¿Qué elemento cambia mientras el algoritmo avanza?",
+    ]
+    for pregunta in opciones:
+        if pregunta and not _pregunta_repetida(pregunta, preguntas_hechas):
+            return pregunta
+    return "¿Qué paso pequeño podrías revisar primero?"
 
 
 def _reparar_respuesta_si_necesario(
     respuesta: str,
     llm,
     preguntas_hechas: list[str],
-    instruccion_progresiva: str,
     state: TutorState,
 ) -> str:
     preguntas = _extraer_preguntas(respuesta)
@@ -225,152 +158,176 @@ def _reparar_respuesta_si_necesario(
     )
     respuesta_normalizada = _normalizar_pregunta(respuesta)
     frase_prohibida = "puedes pensar" in respuesta_normalizada
-    empieza_preguntando = respuesta.lstrip().startswith(("¿", "?"))
 
-    if state.get("bloqueo") and (frase_prohibida or empieza_preguntando):
-        return _respuesta_bloqueo_fallback(
-            state.get("topic", "tema_no_identificado"),
-            preguntas_hechas,
-            state.get("generated_exercise", ""),
-        )
-
-    plantilla_excesiva = respuesta.count("Pista concreta:") > 0 and not state.get("bloqueo")
-
-    if (
-        len(preguntas) == 1
-        and not tiene_repetida
-        and not frase_prohibida
-        and not plantilla_excesiva
-    ):
+    if len(preguntas) == 1 and not tiene_repetida and not frase_prohibida:
         return respuesta
 
-    prompt_reparacion = f"""
-Reescribe la respuesta del Pedagogo Socrático corrigiendo SOLO estos problemas:
-- Debe contener exactamente UNA pregunta.
-- Esa pregunta NO debe repetir ni reformular una pregunta ya hecha.
-- No uses la frase "puedes pensar".
-- Evita sonar como plantilla. No uses "Pista concreta:" salvo bloqueo explícito.
-- Si el estudiante dijo algo correcto o parcialmente correcto, reconócelo en una frase breve.
-- Mantén una pista progresiva acorde a esta estrategia:
-{instruccion_progresiva}
-- No entregues código resuelto ni solución completa.
-- No agregues varias preguntas en una lista.
+    prompt = f"""
+Reescribe la respuesta para corregir estrictamente:
+- Exactamente UNA pregunta.
+- No repetir preguntas ya hechas.
+- No usar "puedes pensar".
+- No entregar código completo ni solución directa.
+- Mantener tono humano y reconocer avances correctos si existen.
+- Máximo 110 palabras.
 
-Preguntas ya hechas en esta sesión:
+Preguntas ya hechas:
 {_formatear_preguntas_hechas(preguntas_hechas)}
 
-Respuesta anterior a corregir:
+Pregunta alternativa segura:
+{_pregunta_alternativa(state, preguntas_hechas)}
+
+Respuesta anterior:
 {respuesta}
 
-Respuesta corregida para el estudiante:
+Respuesta corregida:
 """
-    response = llm.invoke(prompt_reparacion)
-    return response.content.strip()
+    response = llm.invoke(prompt)
+    corregida = response.content.strip()
+    preguntas_corregidas = _extraer_preguntas(corregida)
+    if len(preguntas_corregidas) != 1:
+        base = corregida.split("?")[0].strip()
+        return f"{base}\n\n{_pregunta_alternativa(state, preguntas_hechas)}"
+    return corregida
+
+
+def _ejercicio_vigente(state: TutorState) -> dict:
+    critic = state.get("critic_of_exercise", "")
+    corrected = state.get("corrected_exercise", {})
+    if critic.lower().startswith("corrección técnica") and corrected:
+        return corrected
+    return state.get("generated_exercise", {})
+
+
+def _resumen_integracion(state: TutorState, attempt_count: int) -> str:
+    piezas = []
+    if state.get("motivational_message"):
+        piezas.append("apoyo emocional")
+    if state.get("generated_exercise"):
+        piezas.append("ejercicio práctico")
+    if state.get("technical_analysis"):
+        piezas.append("análisis técnico")
+    if not piezas:
+        piezas.append("RAG del sílabo")
+    return f"Integró {', '.join(piezas)} con progresión intento {attempt_count}."
 
 
 def agente_pedagogo_socratico(
-    state: TutorState, llm, retriever, system_prompt: str
+    state: TutorState, retriever, system_prompt: str
 ) -> TutorState:
+    llm = get_llm_for_agent("pedagogo")
+    modelo = AGENT_MODEL_LABELS["pedagogo"]
+    quality_feedback = state.get("quality_feedback", "")
+    regen = state.get("quality_regen_count", 0)
+    debate_events = emitir_inicio(
+        state,
+        "pedagogo",
+        modelo,
+        ronda=3,
+        mensaje=(
+            "Regenerando respuesta según feedback del evaluador..."
+            if quality_feedback
+            else "Integrando aportes de todos los agentes..."
+        ),
+    )
     topic = state.get("topic", "tema_no_identificado")
     attempt_count = registrar_intento(topic)
     historial_texto = _limitar_texto(formatear_historial(state.get("history", [])[-6:]), 1400)
     preguntas_hechas = state.get("preguntas_hechas", [])
     preguntas_hechas_texto = _formatear_preguntas_hechas(preguntas_hechas)
 
-    if state.get("rag_context"):
-        contexto = state["rag_context"]
-    else:
-        consulta_rag = f"{state['student_message']} {topic}"
-        docs = retriever.invoke(consulta_rag)
-        contexto = "\n\n".join([d.page_content for d in docs])
+    contexto = state.get("rag_context", "")
+    if not contexto:
+        docs = retriever.invoke(f"{state['student_message']} {topic}")
+        contexto = "\n\n".join([doc.page_content for doc in docs])
     contexto = _limitar_texto(contexto, 1200)
 
+    motivational_message = state.get("motivational_message", {})
+    generated_exercise = _ejercicio_vigente(state)
+    technical_analysis = state.get("technical_analysis", {})
+    critic_of_motivator = state.get("critic_of_motivator", "")
+    critic_of_exercise = state.get("critic_of_exercise", "")
+    orchestrator_decision = state.get("orchestrator_decision", {})
+    system_prompt_compacto = _limitar_texto(system_prompt, 900)
     ayuda_progresiva = _instruccion_progresiva(state, attempt_count)
-    reconocimiento = _instruccion_reconocimiento(state)
-
-    bloques_internos = []
-    if state.get("motivational_message"):
-        bloques_internos.append(
-            f"Apoyo afectivo previo (integra con naturalidad, sin repetir textualmente):\n"
-            f"{state['motivational_message']}"
-        )
-    if state.get("technical_analysis"):
-        bloques_internos.append(
-            f"Análisis técnico interno (usa para formular preguntas, no lo copies):\n"
-            f"{state['technical_analysis']}"
-        )
-    if state.get("generated_exercise"):
-        bloques_internos.append(
-            f"Ejercicio generado (preséntalo de forma socrática, sin resolverlo):\n"
-            f"{state['generated_exercise']}"
-        )
-
-    contexto_agentes = (
-        "\n\n".join(bloques_internos)
-        if bloques_internos
-        else "Sin aportes previos de otros agentes."
-    )
-    contexto_agentes = _limitar_texto(contexto_agentes, 1000)
-    system_prompt_compacto = _limitar_texto(system_prompt, 1200)
+    instruccion_modo = _instruccion_modo(state, attempt_count)
 
     prompt = f"""
 {system_prompt_compacto}
 
-Actúas como el Agente Pedagogo Socrático, núcleo conductor del sistema.
-Eres el ÚNICO que responde directamente al estudiante.
+Eres el Agente Pedagogo Socrático, integrador final del sistema.
 
-Temas permitidos: {ALLOWED_TOPICS}
+Modelo usado: {AGENT_MODEL_LABELS["pedagogo"]}. Es apropiado por su capacidad de
+integrar debate, tono pedagógico, RAG y restricciones socráticas.
 
-Reglas:
-- Resguarda la Zona de Desarrollo Próximo (ZDP).
-- NUNCA entregues respuestas directas ni código resuelto.
-- Integra de forma natural los aportes internos de otros agentes.
-- Usa el contexto del sílabo para preguntas reflexivas y pistas conceptuales.
-- Haz exactamente UNA pregunta por respuesta. No hagas dos o más preguntas.
-- No repitas ninguna pregunta ya hecha en esta sesión, ni con palabras similares.
-- Si hay bloqueo explícito, da una pista directa y concreta antes de la pregunta.
-- Si el estudiante dice "no entiendo", "explícame", "ayúdame" o similar, NO abras con una pregunta. Primero explica una pista concreta.
-- Evita la frase "puedes pensar". Suena repetitiva y no ayuda al bloqueo.
-- Si el estudiante dijo algo correcto, reconócelo brevemente antes de avanzar.
-- No felicites de forma exagerada. Usa frases humanas y sobrias como "Sí, vas bien", "Exacto", "Esa parte está bien".
-- No uses siempre la etiqueta "Pista concreta:". Varía la redacción: "Vamos por partes", "La idea clave es", "Bien, ahora afinemos".
-- Responde en máximo 120 palabras.
+Rol como integrador:
+- Lee TutorState: orchestrator_decision, motivational_message, generated_exercise,
+  critic_of_motivator, technical_analysis, critic_of_exercise, preguntas_hechas,
+  RAG, historial y progreso.
+- Escribe TutorState.final_response, preguntas_nuevas, agents_contributions y
+  agents_debate.
 
-Formato si hay bloqueo explícito:
-[frase cercana + explicación breve y directa, sin código resuelto]
+Reglas obligatorias:
+- Eres el único que responde al estudiante.
+- NUNCA entregues código completo ni solución directa.
+- Haz exactamente UNA pregunta socrática por respuesta.
+- No repitas preguntas ya hechas ni con palabras similares.
+- Si motivational_message existe, empieza usando o adaptando frase_apoyo.
+- Si critic_of_motivator trae sugerencia, ajusta el tono inicial.
+- Si technical_analysis existe, basa la pregunta en pregunta_tecnica_sugerida.
+- Si generated_exercise existe y critic_of_exercise es "correcto", reformula el
+  ejercicio como situación de reflexión.
+- Si critic_of_exercise trae corrección, usa el ejercicio corregido.
+- Si todos están activos, integra apoyo emocional, ejercicio y precisión técnica.
+- Si solo estás tú, usa pregunta socrática basada en RAG.
+- Responde en máximo 130 palabras.
 
-[UNA sola pregunta de verificación]
+Modo de aprendizaje:
+{instruccion_modo}
 
-Ayuda progresiva:
+Progresión:
 {ayuda_progresiva}
 
-Reconocimiento del avance del estudiante:
-{reconocimiento}
+Feedback del Evaluador de Calidad (si existe, corrige la respuesta):
+{quality_feedback or "Sin feedback previo."}
+Regeneración número: {regen}
 
-Preguntas ya hechas en esta sesión (NO repetir):
+Temas permitidos:
+{ALLOWED_TOPICS}
+
+Decisión del Orquestador:
+{orchestrator_decision}
+
+Apoyo del Motivador:
+{_dict_lineas(motivational_message, ["frase_apoyo", "reencuadre"])}
+Crítica al Motivador:
+{critic_of_motivator or "No disponible."}
+
+Ejercicio vigente:
+{_dict_lineas(generated_exercise, ["contexto_real", "ejercicio", "pista_inicial", "nivel"])}
+Crítica al ejercicio:
+{critic_of_exercise or "No disponible."}
+
+Análisis técnico:
+{_dict_lineas(technical_analysis, ["concepto_clave", "precision_requerida", "error_comun", "pregunta_tecnica_sugerida"])}
+
+Preguntas ya hechas:
 {preguntas_hechas_texto}
 
-Contexto del sílabo (RAG):
+Contexto del sílabo vía RAG:
 {contexto}
 
-Historial completo de la conversación:
+Historial reciente:
 {historial_texto}
 
-Plan del orquestador:
-- Ruta: {state.get("route", "ruta_pedagogica_principal")}
-- Motivo: {state.get("route_reason", "")}
+Estado del estudiante:
 - Tema: {topic}
-- Dificultad: {state.get("difficulty_type", "pregunta_ambigua")}
-- Emoción: {state.get("emotion", "neutral")}
-- Bloqueo explícito: {"sí" if state.get("bloqueo") else "no"}
-- Progreso del estudiante: {state.get("student_progress", "sin_evidencia")}
-- Intentos en el tema: {attempt_count}
-- Resumen diagnóstico: {state.get("diagnostic_summary", "")}
+- Intentos: {attempt_count}
+- Bloqueo: {state.get("bloqueo", False)}
+- Progreso: {state.get("student_progress", "sin_evidencia")}
+- Fuera de sílabo: {state.get("out_of_syllabus", False)}
 
-Aportes internos de otros agentes:
-{contexto_agentes}
-
-Pregunta actual del estudiante:
+Mensaje actual:
 {state["student_message"]}
 
 Respuesta final para el estudiante:
@@ -380,7 +337,6 @@ Respuesta final para el estudiante:
         response.content.strip(),
         llm,
         preguntas_hechas,
-        ayuda_progresiva,
         state,
     )
     preguntas_nuevas = _extraer_preguntas(respuesta)[:1]
@@ -389,7 +345,32 @@ Respuesta final para el estudiante:
     agents_used = list(state.get("agents_used", []))
     agents_used.append("pedagogo_socratico")
     agents_trace = dict(state.get("agents_trace", {}))
+    contributions = dict(state.get("agents_contributions", {}))
+    debate = list(state.get("agents_debate", []))
+    aporte = _resumen_integracion(state, attempt_count)
+
     agents_trace["pedagogo_socratico"] = f"activo — {tipo_respuesta}"
+    contributions["pedagogo"] = aporte
+    debate.append(
+        {
+            "agente": "Pedagogo Socrático",
+            "modelo": AGENT_MODEL_LABELS["pedagogo"],
+            "accion": "integró todo",
+            "aporte": aporte[:220],
+        }
+    )
+    debate_events = emitir(
+        {**state, "debate_events": debate_events},
+        agente=AGENTE_NOMBRES["pedagogo"],
+        modelo=modelo,
+        ronda=3,
+        accion="sintetiza",
+        mensaje=(
+            f"Integrando debate → {tipo_respuesta}. "
+            f"{aporte}"
+        )[:220],
+        estado="final",
+    )
 
     return {
         "attempt_count": attempt_count,
@@ -397,6 +378,11 @@ Respuesta final para el estudiante:
         "final_response": respuesta,
         "socratic_response_type": tipo_respuesta,
         "preguntas_nuevas": preguntas_nuevas,
+        "quality_feedback": "",
         "agents_used": agents_used,
         "agents_trace": agents_trace,
+        "agents_contributions": contributions,
+        "agents_debate": debate,
+        "debate_events": debate_events,
+        "ronda_actual": 3,
     }

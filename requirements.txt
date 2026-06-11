@@ -1,6 +1,7 @@
 langchain
 langgraph
 langchain-groq
+langchain-google-genai
 langchain-community
 langchain-mistralai
 langchain-text-splitters

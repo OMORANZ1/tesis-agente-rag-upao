@@ -1,108 +1,179 @@
 try:
+    from ..services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
+    from ..services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from ..state import TutorState
-    from ..utils import formatear_historial
+    from ..utils import extraer_json, formatear_historial
 except ImportError:
+    from services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
+    from services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from state import TutorState
-    from utils import formatear_historial
+    from utils import extraer_json, formatear_historial
 
 
-def agente_generador_ejercicios(state: TutorState, llm, retriever) -> TutorState:
+def _seleccionado(state: TutorState) -> bool:
+    return "generador" in state.get("agentes_seleccionados", [])
+
+
+def _limitar_texto(texto: str, max_chars: int = 1200) -> str:
+    if len(texto or "") <= max_chars:
+        return texto or ""
+    return (texto or "")[-max_chars:]
+
+
+def agente_generador_ejercicios(state: TutorState, retriever) -> TutorState:
     agents_used = list(state.get("agents_used", []))
     agents_trace = dict(state.get("agents_trace", {}))
+    contributions = dict(state.get("agents_contributions", {}))
+    debate = list(state.get("agents_debate", []))
 
-    if not state.get("activate_exercise_generator"):
-        agents_trace["generador_ejercicios"] = "no activado"
+    if not _seleccionado(state):
+        agents_trace["generador_ejercicios"] = "no seleccionado"
         return {
-            "generated_exercise": "",
+            "generated_exercise": {},
+            "critic_of_motivator": "",
             "agents_used": agents_used,
             "agents_trace": agents_trace,
+            "agents_contributions": contributions,
+            "agents_debate": debate,
+            "debate_events": state.get("debate_events", []),
         }
 
-    consulta_rag = (
-        f"ejercicios prácticos {state.get('topic', '')} "
-        f"{state['student_message']}"
+    llm = get_llm_for_agent("generador")
+    modelo = AGENT_MODEL_LABELS["generador"]
+    debate_events = emitir_inicio(
+        state,
+        "generador",
+        modelo,
+        ronda=1,
+        mensaje="Diseñando ejercicio práctico personalizado...",
     )
-    docs = retriever.invoke(consulta_rag)
-    contexto = "\n\n".join([d.page_content for d in docs])
-    historial_texto = formatear_historial(state.get("history", []))
-    pedagogo_activo = state.get("allowed_agents", {}).get("pedagogo", True)
-
-    if not pedagogo_activo:
-        prompt = f"""
-Eres el Agente de Generación de Contenido del tutor de Algoritmia y Programación.
-El Pedagogo Socrático está desactivado por el usuario, por lo tanto debes responder
-directamente al estudiante con un apoyo conceptual basado en ejemplos.
-
-Tu tarea:
-- Da un ejemplo simple y concreto relacionado con el tema.
-- Usa lenguaje de primer ciclo universitario.
-- No entregues código completo.
-- No resuelvas un ejercicio completo.
-- No hagas demasiadas preguntas socráticas; en este modo el estudiante pidió un ejemplo.
-- Cierra con una invitación breve a identificar la idea principal.
-- Máximo 140 palabras.
-
-Contexto del sílabo (RAG):
-{contexto}
-
-Historial:
-{historial_texto}
-
-Resumen diagnóstico:
-{state.get("diagnostic_summary", "")}
-
-Mensaje del estudiante:
-{state["student_message"]}
-
-Respuesta directa con ejemplo:
-"""
-        response = llm.invoke(prompt)
-        contenido = response.content.strip()
-        agents_used.append("generador_ejercicios")
-        agents_trace["generador_ejercicios"] = "activado — respuesta directa con ejemplo"
-
-        return {
-            "generated_exercise": contenido,
-            "final_response": contenido,
-            "rag_context": contexto,
-            "agents_used": agents_used,
-            "agents_trace": agents_trace,
-        }
+    topic = state.get("topic", "tema_no_identificado")
+    attempt_count = state.get("attempt_count", 1)
+    nivel = "básico" if attempt_count <= 2 else "intermedio"
+    docs = retriever.invoke(f"ejercicios analogías {topic} {state['student_message']}")
+    contexto = _limitar_texto("\n\n".join([doc.page_content for doc in docs]))
+    historial_texto = _limitar_texto(formatear_historial(state.get("history", [])[-4:]), 900)
+    motivational_message = state.get("motivational_message", {})
 
     prompt = f"""
 Eres el Agente de Generación de Contenido y Ejercicios.
-El estudiante lleva {state.get("attempt_count", 0)} intentos en el tema
-"{state.get("topic", "tema_no_identificado")}" sin avance suficiente.
 
-Genera UN ejercicio práctico personalizado para el Pedagogo Socrático (no respondas
-directamente al estudiante). Incluye:
-- Enunciado claro y breve.
-- Un reto modular (paso a paso).
-- Una analogía del mundo real relacionada con el sílabo.
+Modelo usado: {AGENT_MODEL_LABELS["generador"]}. Es apropiado por su ventana amplia
+para crear ejercicios contextualizados y revisar el aporte anterior.
 
-No entregues la solución. Adapta al primer ciclo universitario.
+Rol como ejecutor:
+- Lee TutorState: topic, attempt_count, diagnostic_summary, mensaje, historial y RAG.
+- Escribe TutorState.generated_exercise con contexto_real, ejercicio, pista_inicial y nivel.
 
-Contexto del sílabo (RAG):
+Rol como crítico:
+- Lee TutorState.motivational_message.
+- Escribe TutorState.critic_of_motivator como "apropiado" o
+  "sugerencia: [ajuste específico]".
+
+No respondas directamente al estudiante. El Pedagogo integrará tu aporte.
+No entregues solución ni código completo.
+
+Contexto del sílabo vía RAG:
 {contexto}
 
-Historial:
+Tema: {topic}
+Intentos: {attempt_count}
+Nivel esperado: {nivel}
+Resumen diagnóstico: {state.get("diagnostic_summary", "")}
+Apoyo del Motivador:
+{motivational_message}
+
+Historial reciente:
 {historial_texto}
 
-Resumen diagnóstico:
-{state.get("diagnostic_summary", "")}
-
-Mensaje del estudiante:
+Mensaje actual:
 {state["student_message"]}
 
-Ejercicio generado (solo para el pedagogo):
+Devuelve SOLO JSON válido:
+{{
+  "generated_exercise": {{
+    "contexto_real": "analogía del mundo real relacionada al tema del sílabo",
+    "ejercicio": "enunciado del problema práctico sin solución",
+    "pista_inicial": "primera pista conceptual sin revelar solución",
+    "nivel": "{nivel}"
+  }},
+  "critic_of_motivator": "apropiado o sugerencia: ajuste específico"
+}}
 """
     response = llm.invoke(prompt)
+    data = extraer_json(
+        response.content,
+        {
+            "generated_exercise": {
+                "contexto_real": f"Una rutina diaria que requiere aplicar {topic}.",
+                "ejercicio": f"Plantea un caso pequeño donde debas reconocer {topic} sin resolverlo completo.",
+                "pista_inicial": "Identifica primero la entrada, el proceso y la salida.",
+                "nivel": nivel,
+            },
+            "critic_of_motivator": (
+                "apropiado" if motivational_message else "sugerencia: no hubo aporte motivador que evaluar"
+            ),
+        },
+    )
+    exercise = data.get("generated_exercise", {})
+    if not isinstance(exercise, dict):
+        exercise = {
+            "contexto_real": f"Situación cotidiana asociada a {topic}.",
+            "ejercicio": str(exercise),
+            "pista_inicial": "Identifica primero la idea principal.",
+            "nivel": nivel,
+        }
+    critic = data.get("critic_of_motivator", "apropiado")
+
     agents_used.append("generador_ejercicios")
-    agents_trace["generador_ejercicios"] = "activado"
+    contributions["generador"] = (
+        f"Ejercicio {exercise.get('nivel', nivel)} sobre {topic}: "
+        f"{exercise.get('ejercicio', '')}"
+    )
+    debate.append(
+        {
+            "agente": "Generador de Contenido",
+            "modelo": AGENT_MODEL_LABELS["generador"],
+            "accion": "ejecutó + criticó al Motivador",
+            "aporte": (
+                f"creó ejercicio {exercise.get('nivel', nivel)} sobre {topic} | "
+                f"motivador: {critic}"
+            )[:220],
+        }
+    )
+    agents_trace["generador_ejercicios"] = (
+        f"activado — ejercicio {exercise.get('nivel', nivel)} | motivador: {critic}"
+    )
+    debate_events = emitir(
+        {**state, "debate_events": debate_events},
+        agente=AGENTE_NOMBRES["generador"],
+        modelo=modelo,
+        ronda=1,
+        accion="propone",
+        mensaje=f"Propuesta: {exercise.get('ejercicio', 'ejercicio contextualizado')}"[:220],
+        estado="working",
+    )
+    if critic and critic != "apropiado":
+        debate_events = emitir(
+            {**state, "debate_events": debate_events},
+            agente=AGENTE_NOMBRES["generador"],
+            modelo=modelo,
+            ronda=2,
+            accion="critica",
+            mensaje=critic[:220],
+            estado="working",
+            critica_a="Motivador",
+            veredicto="sugiere",
+        )
 
     return {
-        "generated_exercise": response.content.strip(),
+        "generated_exercise": exercise,
+        "critic_of_motivator": critic,
         "rag_context": contexto,
         "agents_used": agents_used,
         "agents_trace": agents_trace,
+        "agents_contributions": contributions,
+        "agents_debate": debate,
+        "debate_events": debate_events,
+        "ronda_actual": 2 if critic and critic != "apropiado" else 1,
     }

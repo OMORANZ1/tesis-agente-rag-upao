@@ -424,6 +424,70 @@
             margin-top: 4px;
         }
 
+        .trace-decision {
+            background: #eef4ff;
+            border: 1px solid #d5e4ff;
+            border-radius: 8px;
+            padding: 9px 10px;
+            margin-bottom: 10px;
+        }
+
+        .trace-decision-title {
+            color: var(--brand);
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .debate-list {
+            display: grid;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .debate-item {
+            border: 1px solid #dce5f0;
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 9px 10px;
+        }
+
+        .debate-item.no-seleccionado {
+            background: #f2f4f7;
+            color: #7a8494;
+            opacity: 0.78;
+        }
+
+        .debate-header {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 10px;
+            margin-bottom: 4px;
+        }
+
+        .debate-agent {
+            font-weight: 800;
+            color: var(--text);
+        }
+
+        .debate-model {
+            color: #667085;
+            font-size: 11px;
+            text-align: right;
+        }
+
+        .debate-action {
+            display: inline-block;
+            font-weight: 700;
+            color: #2563c8;
+            margin-right: 5px;
+        }
+
+        .debate-item.no-seleccionado .debate-action,
+        .debate-item.no-seleccionado .debate-agent {
+            color: #7a8494;
+        }
+
         #input-area {
             background: var(--surface);
             padding: 16px 18px;
@@ -506,6 +570,219 @@
             40% { transform: scale(1.2); opacity: 1; }
         }
 
+        .mode-tabs {
+            display: grid;
+            gap: 6px;
+            margin-bottom: 16px;
+        }
+
+        .mode-tab {
+            border: 1px solid var(--border);
+            background: var(--surface-soft);
+            border-radius: 8px;
+            padding: 10px 12px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.2s ease;
+        }
+
+        .mode-tab.active {
+            border-color: var(--brand-2);
+            background: var(--brand-soft);
+            box-shadow: 0 0 0 2px rgba(37, 99, 200, 0.12);
+        }
+
+        .mode-tab strong {
+            display: block;
+            font-size: 13px;
+            color: var(--brand);
+        }
+
+        .mode-tab span {
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        #progress-panel {
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface-soft);
+            overflow: hidden;
+        }
+
+        #progress-panel summary {
+            cursor: pointer;
+            padding: 10px 12px;
+            font-weight: 700;
+            color: var(--brand);
+            list-style: none;
+        }
+
+        #progress-panel summary::-webkit-details-marker { display: none; }
+
+        .progress-list {
+            padding: 0 12px 12px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .progress-item label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 4px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: #e5ebf3;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            border-radius: 999px;
+            transition: width 0.4s ease, background 0.3s ease;
+        }
+
+        #btn-debate-float {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            z-index: 1000;
+            background: var(--brand);
+            color: white;
+            border: none;
+            border-radius: 999px;
+            padding: 12px 18px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 12px 28px rgba(31, 58, 122, 0.28);
+        }
+
+        #debate-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            z-index: 1100;
+            display: none;
+            align-items: flex-end;
+            justify-content: flex-end;
+            padding: 24px;
+        }
+
+        #debate-overlay.open { display: flex; }
+
+        #debate-modal {
+            width: min(520px, 100%);
+            max-height: 78vh;
+            background: white;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-md);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .debate-modal-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 10px;
+        }
+
+        .debate-modal-header h3 {
+            font-size: 16px;
+            color: var(--brand);
+        }
+
+        .debate-modal-header p {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        #btn-debate-close, #btn-debate-prev {
+            border: 1px solid var(--border);
+            background: var(--surface-soft);
+            border-radius: 8px;
+            padding: 6px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        #debate-stream {
+            padding: 14px;
+            overflow-y: auto;
+            display: grid;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .debate-round-title {
+            font-size: 12px;
+            font-weight: 800;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-top: 4px;
+        }
+
+        .debate-bubble {
+            border-radius: 10px;
+            padding: 10px 12px;
+            border: 1px solid #e5ebf3;
+            animation: fadeInUp 0.35s ease;
+        }
+
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .debate-bubble .bubble-head {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .debate-bubble .bubble-agent {
+            font-weight: 800;
+        }
+
+        .debate-bubble .bubble-model {
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .debate-bubble .bubble-action {
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .debate-bubble .bubble-msg {
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+        }
+
+        .debate-bubble.typing .bubble-msg::after {
+            content: " ...";
+            animation: pulso 1.2s infinite;
+        }
+
+        .veredicto-aprobado { color: #15803d; font-weight: 700; }
+        .veredicto-sugiere { color: #b45309; font-weight: 700; }
+
         @media (max-width: 900px) {
             #app-shell {
                 flex-direction: column;
@@ -552,7 +829,27 @@
 <div id="app-shell">
 <aside id="agents-sidebar">
     <h2>Agentes del sistema</h2>
-    <p class="sidebar-help">Activa o desactiva los roles antes de enviar un mensaje. En verde se muestran los agentes usados en la última respuesta.</p>
+    <p class="sidebar-help">Elige el modo de aprendizaje y activa los roles antes de enviar un mensaje.</p>
+
+    <div class="mode-tabs" id="mode-tabs">
+        <button class="mode-tab active" data-modo="socratico" onclick="seleccionarModo('socratico', this)">
+            <strong>Socrático</strong>
+            <span>Solo preguntas orientadoras</span>
+        </button>
+        <button class="mode-tab" data-modo="tutorial" onclick="seleccionarModo('tutorial', this)">
+            <strong>Tutorial</strong>
+            <span>Explicación + ejemplo + pregunta</span>
+        </button>
+        <button class="mode-tab" data-modo="reto" onclick="seleccionarModo('reto', this)">
+            <strong>Reto</strong>
+            <span>Problema con pistas mínimas</span>
+        </button>
+    </div>
+
+    <details id="progress-panel" open>
+        <summary>Tu progreso en el curso</summary>
+        <div class="progress-list" id="progress-list"></div>
+    </details>
 
     <div class="agent-card" id="card-orquestador">
         <div class="agent-card-header">
@@ -565,10 +862,7 @@
     <div class="agent-card" id="card-pedagogo">
         <div class="agent-card-header">
             <span class="agent-name">📚 Pedagogo Socrático</span>
-            <label class="switch">
-                <input type="checkbox" checked onchange="toggleAgentUISwitch('pedagogo', this.checked)">
-                <span class="slider"></span>
-            </label>
+            <span class="agent-fixed-badge">Siempre activo</span>
         </div>
         <div class="agent-description">Integra el contexto y genera la respuesta final guiada.</div>
     </div>
@@ -634,19 +928,192 @@
 </main>
 </div>
 
+<button id="btn-debate-float" onclick="abrirDebateModal()">Ver debate de agentes 🔍</button>
+
+<div id="debate-overlay" onclick="cerrarDebateSiClickFuera(event)">
+    <div id="debate-modal" onclick="event.stopPropagation()">
+        <div class="debate-modal-header">
+            <div>
+                <h3>Debate interno de agentes</h3>
+                <p>Cómo los agentes construyeron esta respuesta</p>
+            </div>
+            <div style="display:flex; gap:6px;">
+                <button id="btn-debate-prev" onclick="mostrarDebateAnterior()">Ver debate anterior</button>
+                <button id="btn-debate-close" onclick="cerrarDebateModal()">✕</button>
+            </div>
+        </div>
+        <div id="debate-stream"></div>
+    </div>
+</div>
+
 <script>
     const chatContainer = document.getElementById('chat-container');
     const inputMensaje = document.getElementById('input-mensaje');
     const btnEnviar = document.getElementById('btn-enviar');
-    const active_agents_config = {
-        orquestador: true,
-        pedagogo: true,
-        tecnico: true,
-        generador: true,
-        motivador: true
+    const MODE_DEFAULTS = {
+        socratico: { orquestador: true, pedagogo: true, tecnico: true, generador: false, motivador: false },
+        tutorial: { orquestador: true, pedagogo: true, tecnico: true, generador: true, motivador: false },
+        reto: { orquestador: true, pedagogo: true, tecnico: true, generador: false, motivador: false }
     };
 
+    const AGENT_COLORS = {
+        'Orquestador': '#2563eb',
+        'Motivador': '#22c55e',
+        'Especialista Técnico': '#f97316',
+        'Generador de Contenido': '#a855f7',
+        'Pedagogo Socrático': '#eab308',
+        'Evaluador de Calidad': '#64748b'
+    };
+
+    const PROGRESS_LABELS = {
+        variables: 'Variables y tipos de datos',
+        operadores: 'Operadores',
+        secuencial: 'Estructura secuencial',
+        condicionales: 'Condicionales (if/else)',
+        bucles: 'Bucles (for/while)',
+        descomposicion: 'Descomposición de problemas'
+    };
+
+    let modoAprendizaje = 'socratico';
+    let debateActual = [];
+    let debateAnterior = [];
+    let typingBubble = null;
+
+    const active_agents_config = { ...MODE_DEFAULTS.socratico };
     window.active_agents_config = active_agents_config;
+
+    function seleccionarModo(modo, btn) {
+        modoAprendizaje = modo;
+        document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
+        btn.classList.add('active');
+        Object.assign(active_agents_config, MODE_DEFAULTS[modo]);
+        ['tecnico', 'generador', 'motivador'].forEach(agent => {
+            const card = document.getElementById(`card-${agent}`);
+            const input = card?.querySelector('input[type="checkbox"]');
+            if (input) input.checked = active_agents_config[agent];
+            toggleAgentUISwitch(agent, active_agents_config[agent]);
+        });
+    }
+
+    function colorProgreso(pct) {
+        if (pct <= 30) return '#ef4444';
+        if (pct <= 70) return '#eab308';
+        return '#22c55e';
+    }
+
+    function renderizarProgreso(progress) {
+        const list = document.getElementById('progress-list');
+        if (!list) return;
+        list.innerHTML = '';
+        Object.entries(PROGRESS_LABELS).forEach(([key, label]) => {
+            const pct = Math.min(100, progress?.[key] || 0);
+            const item = document.createElement('div');
+            item.className = 'progress-item';
+            item.innerHTML = `
+                <label><span>${label}</span><span>${pct}%</span></label>
+                <div class="progress-bar"><div class="progress-fill" style="width:${pct}%; background:${colorProgreso(pct)}"></div></div>
+            `;
+            list.appendChild(item);
+        });
+    }
+
+    async function cargarProgreso() {
+        try {
+            const res = await fetch('/api/progress');
+            const data = await res.json();
+            renderizarProgreso(data.topic_progress || {});
+        } catch (_) {}
+    }
+
+    function abrirDebateModal() {
+        document.getElementById('debate-overlay').classList.add('open');
+    }
+
+    function cerrarDebateModal() {
+        document.getElementById('debate-overlay').classList.remove('open');
+    }
+
+    function cerrarDebateSiClickFuera(event) {
+        if (event.target.id === 'debate-overlay') cerrarDebateModal();
+    }
+
+    function mostrarDebateAnterior() {
+        renderDebateEventos(debateAnterior);
+    }
+
+    function tituloRonda(ronda) {
+        if (ronda === 1) return 'RONDA 1 — Propuestas';
+        if (ronda === 2) return 'RONDA 2 — Críticas y mejoras';
+        return 'RONDA 3 — Síntesis final';
+    }
+
+    let ultimaRondaRenderizada = 0;
+
+    function renderDebateEventos(eventos) {
+        const stream = document.getElementById('debate-stream');
+        stream.innerHTML = '';
+        ultimaRondaRenderizada = 0;
+        (eventos || []).forEach(ev => agregarBurbujaDebate(ev, false));
+    }
+
+    function agregarBurbujaDebate(evento, scroll = true) {
+        if (!evento || evento.tipo === 'respuesta_final' || evento.tipo === '_stream_end') return;
+
+        const stream = document.getElementById('debate-stream');
+        const ronda = evento.ronda || 1;
+        if (ronda !== ultimaRondaRenderizada) {
+            ultimaRondaRenderizada = ronda;
+            const title = document.createElement('div');
+            title.className = 'debate-round-title';
+            title.textContent = tituloRonda(ronda);
+            stream.appendChild(title);
+        }
+
+        const color = AGENT_COLORS[evento.agente] || '#64748b';
+        const bubble = document.createElement('div');
+        bubble.className = 'debate-bubble';
+        bubble.style.borderLeft = `4px solid ${color}`;
+
+        let critica = '';
+        if (evento.critica_a) critica = `<div class="bubble-action">→ critica a ${evento.critica_a}</div>`;
+        let veredicto = '';
+        if (evento.veredicto === 'aprobado') veredicto = '<div class="veredicto-aprobado">✓ Aprobado</div>';
+        if (evento.veredicto === 'sugiere') veredicto = '<div class="veredicto-sugiere">⚠ Sugiere cambio</div>';
+
+        bubble.innerHTML = `
+            <div class="bubble-head">
+                <span class="bubble-agent" style="color:${color}">${evento.agente || 'Agente'}</span>
+                <span class="bubble-model">${evento.modelo || ''}</span>
+            </div>
+            <div class="bubble-action">${evento.accion || 'trabajando'}</div>
+            ${critica}
+            <div class="bubble-msg">${evento.mensaje || ''}</div>
+            ${veredicto}
+        `;
+        stream.appendChild(bubble);
+        if (scroll) stream.scrollTop = stream.scrollHeight;
+        return bubble;
+    }
+
+    function mostrarTyping(agente) {
+        quitarTyping();
+        typingBubble = agregarBurbujaDebate({
+            agente,
+            accion: 'escribiendo',
+            mensaje: 'Procesando',
+            ronda: 1
+        });
+        if (typingBubble) typingBubble.classList.add('typing');
+    }
+
+    function quitarTyping() {
+        if (typingBubble) {
+            typingBubble.remove();
+            typingBubble = null;
+        }
+    }
+
+    cargarProgreso();
 
     function resetAgentActivity() {
         document.querySelectorAll('.agent-card').forEach(card => {
@@ -668,7 +1135,13 @@
     }
 
     function handleBotResponse(data) {
-        agregarRespuestaAgente(data.response || data.respuesta, data.agents_trace);
+        agregarRespuestaAgente(
+            data.response || data.respuesta,
+            data.agents_trace,
+            data.agents_debate || [],
+            data.orchestrator_decision || {},
+            data.agents_contributions || {}
+        );
 
         resetAgentActivity();
         (data.executed_agents || []).forEach(agentName => {
@@ -693,8 +1166,8 @@
         return wrapper;
     }
 
-    function crearPanelTrazabilidad(trace) {
-        if (!trace) return null;
+    function crearPanelTrazabilidad(trace, debate, decision, contributions) {
+        if (!trace && (!debate || debate.length === 0)) return null;
 
         const panel = document.createElement('details');
         panel.className = 'trace-panel';
@@ -706,31 +1179,97 @@
         const contenido = document.createElement('div');
         contenido.className = 'trace-contenido';
 
-        [
-            ['🔍', 'Orquestador', trace.orquestador || '—'],
-            ['💪', 'Motivador', trace.motivador || '—'],
-            ['🔬', 'Especialista Técnico', trace.especialista_tecnico || '—'],
-            ['📝', 'Generador de Ejercicios', trace.generador_ejercicios || '—'],
-            ['🚧', 'Fuera de Sílabo', trace.fuera_silabo || '—'],
-            ['📚', 'Pedagogo Socrático', trace.pedagogo_socratico || 'activo']
-        ].forEach(([icono, agente, valor]) => {
-            const linea = document.createElement('div');
-            linea.className = 'trace-linea';
+        if (decision && (decision.ruta || decision.motivo || decision.prioridad)) {
+            const decisionBox = document.createElement('div');
+            decisionBox.className = 'trace-decision';
 
-            const etiqueta = document.createElement('strong');
-            etiqueta.textContent = `${agente}:`;
+            const title = document.createElement('div');
+            title.className = 'trace-decision-title';
+            title.textContent = 'Decisión del Orquestador';
+            decisionBox.appendChild(title);
 
-            linea.append(`${icono} `);
-            linea.appendChild(etiqueta);
-            linea.append(` ${valor}`);
-            contenido.appendChild(linea);
+            const ruta = document.createElement('div');
+            ruta.textContent = `Ruta: ${decision.ruta || '—'}`;
+            decisionBox.appendChild(ruta);
+
+            const motivo = document.createElement('div');
+            motivo.textContent = `Motivo: ${decision.motivo || '—'}`;
+            decisionBox.appendChild(motivo);
+
+            const prioridad = document.createElement('div');
+            prioridad.textContent = `Prioridad: ${decision.prioridad || '—'}`;
+            decisionBox.appendChild(prioridad);
+            contenido.appendChild(decisionBox);
+        }
+
+        const debateTitle = document.createElement('div');
+        debateTitle.className = 'trace-linea';
+        debateTitle.innerHTML = '<strong>Debate colaborativo del turno</strong>';
+        contenido.appendChild(debateTitle);
+
+        const debateList = document.createElement('div');
+        debateList.className = 'debate-list';
+        (debate || []).forEach(item => {
+            const debateItem = document.createElement('div');
+            debateItem.className = 'debate-item';
+            if ((item.accion || '').toLowerCase().includes('no seleccionado')) {
+                debateItem.classList.add('no-seleccionado');
+            }
+
+            const header = document.createElement('div');
+            header.className = 'debate-header';
+
+            const agent = document.createElement('div');
+            agent.className = 'debate-agent';
+            agent.textContent = item.agente || 'Agente';
+
+            const model = document.createElement('div');
+            model.className = 'debate-model';
+            model.textContent = item.modelo || 'modelo no indicado';
+
+            header.appendChild(agent);
+            header.appendChild(model);
+
+            const body = document.createElement('div');
+            const action = document.createElement('span');
+            action.className = 'debate-action';
+            action.textContent = item.accion || 'aportó';
+            body.appendChild(action);
+            body.append(` ${item.aporte || 'Sin aporte registrado.'}`);
+
+            debateItem.appendChild(header);
+            debateItem.appendChild(body);
+            debateList.appendChild(debateItem);
         });
+
+        if (!debate || debate.length === 0) {
+            const empty = document.createElement('div');
+            empty.className = 'debate-item no-seleccionado';
+            empty.textContent = 'No hay debate registrado para este turno.';
+            debateList.appendChild(empty);
+        }
+
+        contenido.appendChild(debateList);
+
+        if (contributions && Object.keys(contributions).length > 0) {
+            const legacyTitle = document.createElement('div');
+            legacyTitle.className = 'trace-linea';
+            legacyTitle.innerHTML = '<strong>Resumen de contribuciones</strong>';
+            contenido.appendChild(legacyTitle);
+
+            Object.entries(contributions).forEach(([agente, aporte]) => {
+                const linea = document.createElement('div');
+                linea.className = 'trace-linea';
+                linea.textContent = `${agente}: ${aporte}`;
+                contenido.appendChild(linea);
+            });
+        }
 
         panel.appendChild(contenido);
         return panel;
     }
 
-    function agregarRespuestaAgente(texto, trace) {
+    function agregarRespuestaAgente(texto, trace, debate, decision, contributions) {
         const wrapper = document.createElement('div');
         wrapper.className = 'mensaje-wrapper';
 
@@ -739,7 +1278,7 @@
         div.textContent = texto;
         wrapper.appendChild(div);
 
-        const panel = crearPanelTrazabilidad(trace);
+        const panel = crearPanelTrazabilidad(trace, debate, decision, contributions);
         if (panel) wrapper.appendChild(panel);
 
         chatContainer.appendChild(wrapper);
@@ -770,34 +1309,85 @@
         resetAgentActivity();
         mostrarCargando();
 
+        debateAnterior = [...debateActual];
+        debateActual = [];
+        renderDebateEventos([]);
+        abrirDebateModal();
+
         try {
-            const respuesta = await fetch('/chat', {
+            const respuesta = await fetch('/chat/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    message: mensaje,
-                    session_id: 'local-session',
+                    mensaje: mensaje,
+                    modo: modoAprendizaje,
                     allowed_agents: active_agents_config
                 })
             });
 
-            const data = await respuesta.json();
-            ocultarCargando();
+            if (!respuesta.ok) {
+                const err = await respuesta.json();
+                throw new Error(err.error || 'Error en el servidor');
+            }
 
-            if (data.error) {
-                const div = document.createElement('div');
-                div.className = 'mensaje sistema';
-                div.textContent = 'Error: ' + data.error;
-                chatContainer.appendChild(div);
-            } else {
-                handleBotResponse(data);
+            const reader = respuesta.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            let finalData = null;
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const partes = buffer.split('\n\n');
+                buffer = partes.pop() || '';
+
+                for (const parte of partes) {
+                    const linea = parte.trim();
+                    if (!linea.startsWith('data:')) continue;
+                    const payload = JSON.parse(linea.slice(5).trim());
+
+                    if (payload.tipo === 'error') {
+                        throw new Error(payload.mensaje || 'Error en streaming');
+                    }
+
+                    if (payload.tipo === 'respuesta_final' || payload.estado === 'done') {
+                        finalData = payload;
+                        continue;
+                    }
+
+                    if (payload.accion === 'iniciando') {
+                        mostrarTyping(payload.agente);
+                    } else {
+                        quitarTyping();
+                        debateActual.push(payload);
+                        agregarBurbujaDebate(payload);
+                    }
+                }
+            }
+
+            ocultarCargando();
+            quitarTyping();
+
+            if (finalData) {
+                handleBotResponse({
+                    response: finalData.respuesta,
+                    respuesta: finalData.respuesta,
+                    agents_trace: finalData.agents_trace,
+                    agents_debate: finalData.agents_debate,
+                    orchestrator_decision: finalData.orchestrator_decision,
+                    agents_contributions: finalData.agents_contributions || {},
+                    executed_agents: finalData.executed_agents || []
+                });
+                renderizarProgreso(finalData.topic_progress || {});
             }
 
         } catch (error) {
             ocultarCargando();
+            quitarTyping();
             const div = document.createElement('div');
             div.className = 'mensaje sistema';
-            div.textContent = 'Error de conexión. Intenta nuevamente.';
+            div.textContent = 'Error: ' + (error.message || 'conexión');
             chatContainer.appendChild(div);
         }
 
@@ -808,6 +1398,10 @@
     async function reiniciarSesion() {
         await fetch('/reiniciar', { method: 'POST' });
         resetAgentActivity();
+        debateActual = [];
+        debateAnterior = [];
+        renderDebateEventos([]);
+        await cargarProgreso();
         chatContainer.innerHTML = '';
         const div = document.createElement('div');
         div.className = 'mensaje sistema';
