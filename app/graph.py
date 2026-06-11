@@ -1,7 +1,7 @@
 from langgraph.graph import END, StateGraph
 
 try:
-    from .agents.exercise_generator import agente_generador_ejercicios
+    from agents.exercise_generator import agente_generador_ejercicios
     from .agents.motivational import agente_motivador
     from .agents.orchestrator import agente_orquestador
     from .agents.quality_evaluator import agente_evaluador_calidad

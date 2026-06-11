@@ -1,5 +1,5 @@
 try:
-    from ..services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
+    from services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
     from ..services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from ..state import TutorState
     from ..utils import extraer_json, formatear_historial

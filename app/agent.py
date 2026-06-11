@@ -1,7 +1,7 @@
 from queue import Queue
 
 try:
-    from .config import PROMPT_PATH
+    from config import PROMPT_PATH
     from .graph import construir_grafo
     from .services.llm_service import crear_llm
     from .services.memory_service import (
