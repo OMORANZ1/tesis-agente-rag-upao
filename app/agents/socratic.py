@@ -80,6 +80,11 @@ def _dict_lineas(data: dict, keys: list[str]) -> str:
 
 
 def _tipo_respuesta_socratica(state: TutorState, attempt_count: int) -> str:
+    modo = state.get("modo_aprendizaje", "socratico")
+    if modo == "tutorial":
+        return "explicación tutorial con ejemplo y verificación"
+    if modo == "reto":
+        return "reto práctico con pistas mínimas"
     if state.get("generated_exercise") and state.get("technical_analysis"):
         return "integración de apoyo, ejercicio y análisis técnico"
     if state.get("generated_exercise"):
@@ -94,27 +99,50 @@ def _tipo_respuesta_socratica(state: TutorState, attempt_count: int) -> str:
 def _instruccion_modo(state: TutorState, attempt_count: int) -> str:
     modo = state.get("modo_aprendizaje", "socratico")
     if modo == "tutorial":
+        return """
+MODO TUTORIAL ACTIVO:
+- Primero explica el concepto de forma clara y concisa.
+- Luego da un ejemplo concreto y simple.
+- Termina siempre con UNA pregunta de verificación.
+- Puedes dar información directa, no seas socrático puro.
+- El objetivo es que el estudiante comprenda el concepto.
+"""
+    if modo == "reto":
+        return f"""
+MODO RETO ACTIVO:
+- Presenta inmediatamente un problema práctico para resolver.
+- NO expliques el concepto ni hagas preguntas orientadoras al inicio.
+- Solo da pistas si attempt_count > 2. Intento actual: {attempt_count}.
+- Las pistas deben ser mínimas, una por vez.
+- El objetivo es que el estudiante resuelva por su cuenta.
+"""
+    return """
+MODO SOCRÁTICO ACTIVO:
+- Responde ÚNICAMENTE con preguntas orientadoras.
+- NUNCA des explicaciones directas ni ejemplos.
+- NUNCA des la respuesta aunque el estudiante la pida.
+- Una sola pregunta por respuesta, específica y progresiva.
+- El objetivo es que el estudiante llegue solo a la respuesta.
+"""
+
+
+def _instruccion_progresiva(state: TutorState, attempt_count: int) -> str:
+    modo = state.get("modo_aprendizaje", "socratico")
+    if modo == "tutorial":
         return (
-            "Modo tutorial: puedes dar una explicación breve y un ejemplo conceptual, "
-            "pero siempre termina con exactamente UNA pregunta de verificación."
+            "Modo tutorial: prioriza comprensión. Mantén explicación y ejemplo "
+            "breves, y cierra con una sola pregunta de verificación."
         )
     if modo == "reto":
         if attempt_count <= 2:
             return (
-                "Modo reto: da pistas mínimas. No expliques directamente. "
-                "Formula una pregunta que guíe sin revelar la solución."
+                "Modo reto intentos 1-2: entrega solo un reto concreto. "
+                "No expliques ni des pistas todavía."
             )
         return (
-            "Modo reto (más de 2 intentos): puedes dar una pista progresiva, "
-            "pero sigue sin dar la solución completa."
+            "Modo reto intento 3 o superior: puedes añadir una pista mínima, "
+            "sin resolver el reto."
         )
-    return (
-        "Modo socrático: solo preguntas orientadoras. "
-        "NUNCA des explicaciones directas ni soluciones."
-    )
-
-
-def _instruccion_progresiva(state: TutorState, attempt_count: int) -> str:
     if attempt_count >= 4:
         return (
             "Intento 4 o superior: da una pista conceptual directa, sin código ni "
@@ -146,12 +174,21 @@ def _pregunta_alternativa(state: TutorState, preguntas_hechas: list[str]) -> str
     return "¿Qué paso pequeño podrías revisar primero?"
 
 
+def _forzar_una_pregunta(respuesta: str, state: TutorState, preguntas_hechas: list[str]) -> str:
+    preguntas = _extraer_preguntas(respuesta)
+    for pregunta in preguntas:
+        if not _pregunta_repetida(pregunta, preguntas_hechas):
+            return pregunta
+    return _pregunta_alternativa(state, preguntas_hechas)
+
+
 def _reparar_respuesta_si_necesario(
     respuesta: str,
     llm,
     preguntas_hechas: list[str],
     state: TutorState,
 ) -> str:
+    modo = state.get("modo_aprendizaje", "socratico")
     preguntas = _extraer_preguntas(respuesta)
     tiene_repetida = any(
         _pregunta_repetida(pregunta, preguntas_hechas) for pregunta in preguntas
@@ -159,17 +196,26 @@ def _reparar_respuesta_si_necesario(
     respuesta_normalizada = _normalizar_pregunta(respuesta)
     frase_prohibida = "puedes pensar" in respuesta_normalizada
 
-    if len(preguntas) == 1 and not tiene_repetida and not frase_prohibida:
+    if modo == "reto":
+        if len(preguntas) <= 1 and not frase_prohibida:
+            return respuesta
+    elif len(preguntas) == 1 and not tiene_repetida and not frase_prohibida:
         return respuesta
 
+    regla_pregunta = (
+        "No es obligatorio hacer pregunta en modo reto. Si haces una, que sea solo una."
+        if modo == "reto"
+        else "Exactamente UNA pregunta."
+    )
     prompt = f"""
 Reescribe la respuesta para corregir estrictamente:
-- Exactamente UNA pregunta.
+- {regla_pregunta}
 - No repetir preguntas ya hechas.
 - No usar "puedes pensar".
 - No entregar código completo ni solución directa.
 - Mantener tono humano y reconocer avances correctos si existen.
 - Máximo 110 palabras.
+- Respetar el modo activo: {modo}.
 
 Preguntas ya hechas:
 {_formatear_preguntas_hechas(preguntas_hechas)}
@@ -185,6 +231,8 @@ Respuesta corregida:
     response = llm.invoke(prompt)
     corregida = response.content.strip()
     preguntas_corregidas = _extraer_preguntas(corregida)
+    if modo == "reto":
+        return corregida
     if len(preguntas_corregidas) != 1:
         base = corregida.split("?")[0].strip()
         return f"{base}\n\n{_pregunta_alternativa(state, preguntas_hechas)}"
@@ -215,6 +263,15 @@ def _resumen_integracion(state: TutorState, attempt_count: int) -> str:
 def agente_pedagogo_socratico(
     state: TutorState, retriever, system_prompt: str
 ) -> TutorState:
+    if state.get("route") == "fuera_silabo":
+        return {
+            "final_response": "",
+            "agents_trace": {
+                **dict(state.get("agents_trace", {})),
+                "pedagogo_socratico": "no activado por fuera_silabo",
+            },
+        }
+
     llm = get_llm_for_agent("pedagogo")
     modelo = AGENT_MODEL_LABELS["pedagogo"]
     quality_feedback = state.get("quality_feedback", "")
@@ -231,7 +288,8 @@ def agente_pedagogo_socratico(
         ),
     )
     topic = state.get("topic", "tema_no_identificado")
-    attempt_count = registrar_intento(topic)
+    modo = state.get("modo_aprendizaje", "socratico")
+    attempt_count = state.get("attempt_count", 1) if modo == "reto" else registrar_intento(topic)
     historial_texto = _limitar_texto(formatear_historial(state.get("history", [])[-6:]), 1400)
     preguntas_hechas = state.get("preguntas_hechas", [])
     preguntas_hechas_texto = _formatear_preguntas_hechas(preguntas_hechas)
@@ -242,51 +300,86 @@ def agente_pedagogo_socratico(
         contexto = "\n\n".join([doc.page_content for doc in docs])
     contexto = _limitar_texto(contexto, 1200)
 
+    if modo == "reto":
+        apoyo = ""
+        if attempt_count > 2:
+            prompt_apoyo = f"""
+Eres el Pedagogo Socrático como apoyo interno del modo reto.
+El Especialista Técnico ya dio la respuesta principal. No la reemplaces.
+
+Reglas:
+- Si attempt_count es 3 o 4, escribe UNA pista mínima sin solución.
+- Si attempt_count es mayor que 4, escribe una solución parcial breve con explicación.
+- No agregues preguntas orientadoras largas.
+
+Contexto del sílabo:
+{contexto}
+
+Respuesta principal del Especialista:
+{state.get("final_response", "")}
+
+Tema: {topic}
+Intentos: {attempt_count}
+Mensaje del estudiante:
+{state["student_message"]}
+
+Apoyo:
+"""
+            apoyo = llm.invoke(prompt_apoyo).content.strip()
+
+        respuesta = (
+            f"{state.get('final_response', '')}\n\n{apoyo}".strip()
+            if apoyo
+            else state.get("final_response", "")
+        )
+        agents_used = list(state.get("agents_used", []))
+        agents_used.append("pedagogo_socratico")
+        agents_trace = dict(state.get("agents_trace", {}))
+        contributions = dict(state.get("agents_contributions", {}))
+        debate = list(state.get("agents_debate", []))
+        agents_trace["pedagogo_socratico"] = (
+            "apoyo en reto — pista mínima" if apoyo else "no activado"
+        )
+        if apoyo:
+            contributions["pedagogo"] = apoyo
+            debate.append(
+                {
+                    "agente": "Pedagogo Socrático",
+                    "modelo": AGENT_MODEL_LABELS["pedagogo"],
+                    "accion": "apoyó reto",
+                    "aporte": apoyo[:220],
+                }
+            )
+        return {
+            "rag_context": contexto,
+            "final_response": respuesta,
+            "quality_feedback": "",
+            "agents_used": agents_used,
+            "agents_trace": agents_trace,
+            "agents_contributions": contributions,
+            "agents_debate": debate,
+            "debate_events": debate_events,
+            "ronda_actual": 3,
+        }
+
     motivational_message = state.get("motivational_message", {})
     generated_exercise = _ejercicio_vigente(state)
     technical_analysis = state.get("technical_analysis", {})
     critic_of_motivator = state.get("critic_of_motivator", "")
     critic_of_exercise = state.get("critic_of_exercise", "")
     orchestrator_decision = state.get("orchestrator_decision", {})
-    system_prompt_compacto = _limitar_texto(system_prompt, 900)
-    ayuda_progresiva = _instruccion_progresiva(state, attempt_count)
-    instruccion_modo = _instruccion_modo(state, attempt_count)
-
     prompt = f"""
-{system_prompt_compacto}
-
-Eres el Agente Pedagogo Socrático, integrador final del sistema.
-
-Modelo usado: {AGENT_MODEL_LABELS["pedagogo"]}. Es apropiado por su capacidad de
-integrar debate, tono pedagógico, RAG y restricciones socráticas.
-
-Rol como integrador:
-- Lee TutorState: orchestrator_decision, motivational_message, generated_exercise,
-  critic_of_motivator, technical_analysis, critic_of_exercise, preguntas_hechas,
-  RAG, historial y progreso.
-- Escribe TutorState.final_response, preguntas_nuevas, agents_contributions y
-  agents_debate.
+Eres un tutor socrático ESTRICTO. Tu ÚNICA función es hacer UNA pregunta
+orientadora por respuesta. NUNCA expliques, NUNCA des ejemplos, NUNCA respondas
+tu propia pregunta. Si sientes el impulso de explicar algo, conviértelo en una
+pregunta.
 
 Reglas obligatorias:
-- Eres el único que responde al estudiante.
-- NUNCA entregues código completo ni solución directa.
-- Haz exactamente UNA pregunta socrática por respuesta.
+- Devuelve exactamente UNA pregunta.
+- No agregues explicación, ejemplo, saludo, lista, título ni cierre.
+- No uses frases como "Por ejemplo", "Es decir", "Recuerda" o "La idea es".
+- Basa la pregunta en el contexto del sílabo y en el mensaje del estudiante.
 - No repitas preguntas ya hechas ni con palabras similares.
-- Si motivational_message existe, empieza usando o adaptando frase_apoyo.
-- Si critic_of_motivator trae sugerencia, ajusta el tono inicial.
-- Si technical_analysis existe, basa la pregunta en pregunta_tecnica_sugerida.
-- Si generated_exercise existe y critic_of_exercise es "correcto", reformula el
-  ejercicio como situación de reflexión.
-- Si critic_of_exercise trae corrección, usa el ejercicio corregido.
-- Si todos están activos, integra apoyo emocional, ejercicio y precisión técnica.
-- Si solo estás tú, usa pregunta socrática basada en RAG.
-- Responde en máximo 130 palabras.
-
-Modo de aprendizaje:
-{instruccion_modo}
-
-Progresión:
-{ayuda_progresiva}
 
 Feedback del Evaluador de Calidad (si existe, corrige la respuesta):
 {quality_feedback or "Sin feedback previo."}
@@ -326,6 +419,7 @@ Estado del estudiante:
 - Bloqueo: {state.get("bloqueo", False)}
 - Progreso: {state.get("student_progress", "sin_evidencia")}
 - Fuera de sílabo: {state.get("out_of_syllabus", False)}
+- Route: {state.get("route", "colaborativa")}
 
 Mensaje actual:
 {state["student_message"]}
@@ -339,6 +433,7 @@ Respuesta final para el estudiante:
         preguntas_hechas,
         state,
     )
+    respuesta = _forzar_una_pregunta(respuesta, state, preguntas_hechas)
     preguntas_nuevas = _extraer_preguntas(respuesta)[:1]
     tipo_respuesta = _tipo_respuesta_socratica(state, attempt_count)
 

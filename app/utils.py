@@ -26,6 +26,20 @@ PSEUDOCODE_KEYWORDS = {
 }
 
 OUT_OF_SYLLABUS_PATTERNS = (
+    r"\bmedicina\b",
+    r"\bm[eé]dic[ao]s?\b",
+    r"\banatom[ií]a\b",
+    r"\bfisiolog[ií]a\b",
+    r"\bfarmacolog[ií]a\b",
+    r"\bcirug[ií]a\b",
+    r"\bderecho\b",
+    r"\bcontabilidad\b",
+    r"\bmarketing\b",
+    r"\bfinanzas\b",
+    r"\bhistoria\b",
+    r"\bbiolog[ií]a\b",
+    r"\bqu[ií]mica\b",
+    r"\bf[ií]sica\s+(?!b[aá]sica\b)",
     r"\bred(es)?\s+neuronal(es)?\b",
     r"\binteligencia\s+artificial\b",
     r"\bmachine\s+learning\b",
@@ -42,6 +56,38 @@ OUT_OF_SYLLABUS_PATTERNS = (
     r"\breact\b",
     r"\bciberseguridad\b",
     r"\bredes\s+inform[aá]ticas\b",
+)
+
+SYLLABUS_PATTERNS = (
+    r"\bvariable(s)?\b",
+    r"\btipo(s)?\s+de\s+dato(s)?\b",
+    r"\bdato(s)?\b",
+    r"\bconstante(s)?\b",
+    r"\boperador(es)?\b",
+    r"\baritm[eé]tic[ao]s?\b",
+    r"\brelacional(es)?\b",
+    r"\bl[oó]gic[ao]s?\b",
+    r"\bexpresi[oó]n(es)?\b",
+    r"\bsecuencial(es)?\b",
+    r"\bestructura(s)?\s+secuencial(es)?\b",
+    r"\bcondicional(es)?\b",
+    r"\bif\b",
+    r"\belse\b",
+    r"\bsi\b",
+    r"\bentonces\b",
+    r"\bbucle(s)?\b",
+    r"\bciclo(s)?\b",
+    r"\bfor\b",
+    r"\bwhile\b",
+    r"\bpara\b",
+    r"\bmientras\b",
+    r"\bcontador(es)?\b",
+    r"\bacumulador(es)?\b",
+    r"\bdescomposici[oó]n\b",
+    r"\bpseudoc[oó]digo\b",
+    r"\bdiagrama(s)?\s+de\s+flujo\b",
+    r"\balgoritm(ia|o|os|ico|ica|icos|icas)\b",
+    r"\bprueba\s+de\s+escritorio\b",
 )
 
 
@@ -89,6 +135,16 @@ def detectar_fuera_silabo(mensaje: str) -> bool:
     return any(
         re.search(patron, texto, re.IGNORECASE)
         for patron in OUT_OF_SYLLABUS_PATTERNS
+    )
+
+
+def detectar_tema_silabo(mensaje: str) -> bool:
+    texto = (mensaje or "").lower()
+    if detectar_codigo(texto):
+        return True
+    return any(
+        re.search(patron, texto, re.IGNORECASE)
+        for patron in SYLLABUS_PATTERNS
     )
 
 

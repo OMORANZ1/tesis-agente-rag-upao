@@ -7,6 +7,7 @@ try:
     from ..utils import (
         detectar_codigo,
         detectar_fuera_silabo,
+        detectar_tema_silabo,
         extraer_json,
         formatear_historial,
     )
@@ -19,6 +20,7 @@ except ImportError:
     from utils import (
         detectar_codigo,
         detectar_fuera_silabo,
+        detectar_tema_silabo,
         extraer_json,
         formatear_historial,
     )
@@ -54,6 +56,12 @@ PROGRESO_FRASES = (
     "repeticiones",
 )
 AGENTES_COLABORATIVOS = ("motivador", "generador", "especialista", "pedagogo")
+
+RESPUESTA_FUERA_SILABO = (
+    "Ese tema está fuera del contenido del curso de Algoritmia y Programación "
+    "de la UPAO. Solo puedo ayudarte con: variables, operadores, estructuras "
+    "secuenciales, condicionales y bucles."
+)
 
 
 def _detectar_bloqueo(mensaje: str) -> bool:
@@ -124,13 +132,15 @@ def _ajustar_por_modo(state: TutorState, agentes_seleccionados: list[str]) -> di
     if modo == "socratico":
         activate_exercise_generator = False
         activate_motivator = activate_motivator and "motivador" in agentes_seleccionados
+        activate_technical = state.get("has_code", False) and "especialista" in agentes_seleccionados
     elif modo == "tutorial":
-        activate_exercise_generator = "generador" in agentes_seleccionados
-        activate_technical = "especialista" in agentes_seleccionados
+        activate_exercise_generator = True
+        activate_technical = True
+        activate_motivator = False
     elif modo == "reto":
         activate_exercise_generator = False
         activate_motivator = False
-        activate_technical = "especialista" in agentes_seleccionados
+        activate_technical = True
 
     return {
         "activate_motivator": activate_motivator,
@@ -154,12 +164,75 @@ def agente_orquestador(state: TutorState, retriever) -> TutorState:
     mensaje = state["student_message"]
     has_code = detectar_codigo(mensaje)
     bloqueo = _detectar_bloqueo(mensaje)
-    out_of_syllabus = detectar_fuera_silabo(mensaje)
+    out_of_syllabus = detectar_fuera_silabo(mensaje) or not detectar_tema_silabo(mensaje)
     progreso_local = _detectar_progreso(mensaje, bloqueo)
     agentes_seleccionados = _agentes_seleccionados(state)
+    modo = state.get("modo_aprendizaje", "socratico")
+
+    if out_of_syllabus:
+        agents_trace = dict(state.get("agents_trace", {}))
+        agents_trace.update(
+            {
+                "orquestador": "Ruta: fuera_silabo. La consulta no pertenece al sílabo.",
+                "motivador": "no activado",
+                "generador_ejercicios": "no activado",
+                "especialista_tecnico": "no activado",
+                "pedagogo_socratico": "no activado",
+                "fuera_silabo": "pendiente",
+            }
+        )
+        decision = {
+            "ruta": "fuera_silabo",
+            "motivo": "La consulta no corresponde a los temas permitidos del curso.",
+            "prioridad": "fuera_silabo",
+        }
+        debate = list(state.get("agents_debate", []))
+        debate.append(
+            {
+                "agente": "Orquestador",
+                "modelo": modelo,
+                "accion": "rechazó por sílabo",
+                "aporte": decision["motivo"],
+            }
+        )
+        debate_events = emitir(
+            {**state, "debate_events": debate_events},
+            agente=AGENTE_NOMBRES["orquestador"],
+            modelo=modelo,
+            ronda=1,
+            accion="fuera de sílabo",
+            mensaje="La consulta no pertenece al curso. Se deriva al agente de rechazo.",
+            estado="working",
+        )
+        return {
+            "route": "fuera_silabo",
+            "topic": "fuera_silabo",
+            "difficulty_type": "fuera_silabo",
+            "emotion": "neutral",
+            "bloqueo": False,
+            "student_progress": "sin_evidencia",
+            "out_of_syllabus": True,
+            "activate_motivator": False,
+            "activate_technical": False,
+            "activate_exercise_generator": False,
+            "orchestrator_decision": decision,
+            "agente_respondedor": "fuera_silabo",
+            "agents_used": ["orquestador"],
+            "agents_trace": agents_trace,
+            "agents_contributions": {"orquestador": RESPUESTA_FUERA_SILABO},
+            "agents_debate": debate,
+            "debate_events": debate_events,
+            "ronda_actual": 1,
+        }
 
     docs = retriever.invoke(mensaje)
     contexto = _limitar_texto("\n\n".join([doc.page_content for doc in docs]), 1200)
+
+    agente_respondedor = {
+        "socratico": "pedagogo",
+        "tutorial": "generador",
+        "reto": "especialista",
+    }.get(modo, "pedagogo")
 
     prompt = f"""
 Eres el Orquestador de una arquitectura multiagente colaborativa para tutoría
@@ -173,12 +246,16 @@ Rol como ejecutor:
   detección local de código/bloqueo y contexto RAG del sílabo.
 - Escribe TutorState: topic, difficulty_type, emotion, bloqueo, student_progress,
   out_of_syllabus, orchestrator_decision, agents_contributions y agents_debate.
-- NO eliges un único agente: organizas la colaboración entre los agentes activos.
+- Eliges el flujo según TutorState.modo_aprendizaje.
+- La detección fuera de sílabo siempre tiene prioridad.
+- El respondedor final por modo es fijo: socrático=Pedagogo, tutorial=Generador,
+  reto=Especialista.
 
 Temas permitidos:
 {ALLOWED_TOPICS}
 
-Modo de aprendizaje: {state.get("modo_aprendizaje", "socratico")}
+Modo de aprendizaje: {modo}
+Agente respondedor final: {agente_respondedor}
 
 Agentes seleccionados por el estudiante:
 {agentes_seleccionados}
@@ -205,9 +282,9 @@ Devuelve SOLO JSON válido:
   "out_of_syllabus": false,
   "diagnostic_summary": "diagnóstico breve y específico",
   "orchestrator_decision": {{
-    "ruta": "motivador → generador → especialista → pedagogo",
-    "motivo": "por qué esta colaboración ayuda en este turno",
-    "prioridad": "agente que aportará más valor"
+    "ruta": "socratico|tutorial|reto|fuera_silabo",
+    "motivo": "por qué este modo corresponde al turno",
+    "prioridad": "{agente_respondedor}"
   }}
 }}
 
@@ -226,9 +303,9 @@ Mensaje actual:
             "out_of_syllabus": out_of_syllabus,
             "diagnostic_summary": "El estudiante necesita orientación pedagógica.",
             "orchestrator_decision": {
-                "ruta": "motivador → generador → especialista → pedagogo",
-                "motivo": "Se coordina apoyo afectivo, práctica, precisión técnica e integración socrática.",
-                "prioridad": "pedagogo",
+                "ruta": modo,
+                "motivo": "Se aplica el flujo fijo del modo de aprendizaje activo.",
+                "prioridad": agente_respondedor,
             },
         },
     )
@@ -249,13 +326,13 @@ Mensaje actual:
         orchestrator_decision = {}
     orchestrator_decision = {
         "ruta": orchestrator_decision.get(
-            "ruta", "motivador → generador → especialista → pedagogo"
+            "ruta", modo
         ),
         "motivo": orchestrator_decision.get(
             "motivo",
             "Se coordina apoyo, ejercicio, precisión técnica e integración final.",
         ),
-        "prioridad": orchestrator_decision.get("prioridad", "pedagogo"),
+        "prioridad": agente_respondedor,
     }
 
     activate_motivator = emotion in EMOCIONES_FRUSTRACION
@@ -297,10 +374,11 @@ Mensaje actual:
         activando.append("Generador")
     if activate_technical:
         activando.append("Especialista")
-    activando.append("Pedagogo")
+    if modo == "socratico" or (modo == "reto" and attempt_count > 2):
+        activando.append("Pedagogo")
     mensaje_sse = (
         f"Detectó tema: {topic} | Nivel: {data.get('difficulty_type', 'pregunta_ambigua')} | "
-        f"Modo: {state.get('modo_aprendizaje', 'socratico')} | "
+        f"Modo: {modo} | Respondedor: {agente_respondedor} | "
         f"Activando: {' + '.join(activando)}"
     )
     debate_events = emitir(
@@ -324,14 +402,14 @@ Mensaje actual:
             if "motivador" in agentes_seleccionados and activate_motivator
             else "no activado"
         ),
-        "generador_ejercicios": (
-            "pendiente" if "generador" in agentes_seleccionados else "no seleccionado"
-        ),
-        "especialista_tecnico": (
-            "pendiente" if "especialista" in agentes_seleccionados else "no seleccionado"
-        ),
+        "generador_ejercicios": "pendiente" if activate_exercise_generator else "no activado",
+        "especialista_tecnico": "pendiente" if activate_technical else "no activado",
         "fuera_silabo": "sí" if out_of_syllabus else "no",
-        "pedagogo_socratico": "pendiente",
+        "pedagogo_socratico": (
+            "pendiente"
+            if modo == "socratico" or (modo == "reto" and attempt_count > 2)
+            else "no activado"
+        ),
     }
 
     return {
@@ -352,6 +430,7 @@ Mensaje actual:
             "El estudiante necesita orientación pedagógica.",
         ),
         "orchestrator_decision": orchestrator_decision,
+        "agente_respondedor": agente_respondedor,
         "rag_context": contexto,
         "agents_used": ["orquestador"],
         "agents_trace": agents_trace,
@@ -359,6 +438,6 @@ Mensaje actual:
         "agents_debate": debate,
         "debate_events": debate_events,
         "ronda_actual": 1,
-        "route": "colaborativa",
+        "route": modo,
         "route_reason": orchestrator_decision["motivo"],
     }

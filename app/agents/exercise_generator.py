@@ -1,5 +1,5 @@
 try:
-    from services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
+    from ..services.llm_service import AGENT_MODEL_LABELS, get_llm_for_agent
     from ..services.sse_service import AGENTE_NOMBRES, emitir, emitir_inicio
     from ..state import TutorState
     from ..utils import extraer_json, formatear_historial
@@ -11,6 +11,8 @@ except ImportError:
 
 
 def _seleccionado(state: TutorState) -> bool:
+    if state.get("modo_aprendizaje") == "tutorial":
+        return True
     return "generador" in state.get("agentes_seleccionados", [])
 
 
@@ -54,6 +56,79 @@ def agente_generador_ejercicios(state: TutorState, retriever) -> TutorState:
     contexto = _limitar_texto("\n\n".join([doc.page_content for doc in docs]))
     historial_texto = _limitar_texto(formatear_historial(state.get("history", [])[-4:]), 900)
     motivational_message = state.get("motivational_message", {})
+
+    if state.get("modo_aprendizaje") == "tutorial":
+        technical_analysis = state.get("technical_analysis", {})
+        prompt_tutorial = f"""
+Eres un tutor didáctico. SIEMPRE estructura tu respuesta en tres partes:
+CONCEPTO (explicación directa), EJEMPLO (concreto y simple), VERIFICACIÓN
+(una pregunta de comprobación). Nunca mezcles estos elementos.
+
+Reglas:
+- El Pedagogo Socrático no participa en este modo.
+- CONCEPTO: máximo 2-3 oraciones.
+- EJEMPLO: simple, concreto y alineado al sílabo.
+- VERIFICACIÓN: exactamente UNA pregunta.
+- Corrige el ejemplo si el análisis técnico advierte un riesgo o error.
+
+Contexto del sílabo:
+{contexto}
+
+Validación técnica interna:
+{technical_analysis}
+
+Tema: {topic}
+Historial reciente:
+{historial_texto}
+
+Mensaje actual:
+{state["student_message"]}
+
+Respuesta final obligatoria:
+📖 CONCEPTO: ...
+
+💡 EJEMPLO: ...
+
+✅ VERIFICACIÓN: ...
+"""
+        respuesta = llm.invoke(prompt_tutorial).content.strip()
+        agents_used.append("generador_ejercicios")
+        contributions["generador"] = "Respuesta tutorial final con concepto, ejemplo y verificación."
+        debate.append(
+            {
+                "agente": "Generador de Contenido",
+                "modelo": AGENT_MODEL_LABELS["generador"],
+                "accion": "respondió tutorial",
+                "aporte": "Estructuró la respuesta final en CONCEPTO, EJEMPLO y VERIFICACIÓN.",
+            }
+        )
+        agents_trace["generador_ejercicios"] = "respondedor principal — tutorial estructurado"
+        debate_events = emitir(
+            {**state, "debate_events": debate_events},
+            agente=AGENTE_NOMBRES["generador"],
+            modelo=modelo,
+            ronda=3,
+            accion="responde",
+            mensaje="Generó respuesta tutorial final con concepto, ejemplo y verificación.",
+            estado="final",
+        )
+        return {
+            "final_response": respuesta,
+            "generated_exercise": {
+                "contexto_real": "",
+                "ejercicio": "",
+                "pista_inicial": "",
+                "nivel": nivel,
+            },
+            "critic_of_motivator": "",
+            "rag_context": contexto,
+            "agents_used": agents_used,
+            "agents_trace": agents_trace,
+            "agents_contributions": contributions,
+            "agents_debate": debate,
+            "debate_events": debate_events,
+            "ronda_actual": 3,
+        }
 
     prompt = f"""
 Eres el Agente de Generación de Contenido y Ejercicios.

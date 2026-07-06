@@ -1074,22 +1074,49 @@
         bubble.className = 'debate-bubble';
         bubble.style.borderLeft = `4px solid ${color}`;
 
-        let critica = '';
-        if (evento.critica_a) critica = `<div class="bubble-action">→ critica a ${evento.critica_a}</div>`;
-        let veredicto = '';
-        if (evento.veredicto === 'aprobado') veredicto = '<div class="veredicto-aprobado">✓ Aprobado</div>';
-        if (evento.veredicto === 'sugiere') veredicto = '<div class="veredicto-sugiere">⚠ Sugiere cambio</div>';
+        const head = document.createElement('div');
+        head.className = 'bubble-head';
 
-        bubble.innerHTML = `
-            <div class="bubble-head">
-                <span class="bubble-agent" style="color:${color}">${evento.agente || 'Agente'}</span>
-                <span class="bubble-model">${evento.modelo || ''}</span>
-            </div>
-            <div class="bubble-action">${evento.accion || 'trabajando'}</div>
-            ${critica}
-            <div class="bubble-msg">${evento.mensaje || ''}</div>
-            ${veredicto}
-        `;
+        const agent = document.createElement('span');
+        agent.className = 'bubble-agent';
+        agent.style.color = color;
+        agent.textContent = evento.agente || 'Agente';
+
+        const model = document.createElement('span');
+        model.className = 'bubble-model';
+        model.textContent = evento.modelo || '';
+
+        head.appendChild(agent);
+        head.appendChild(model);
+        bubble.appendChild(head);
+
+        const action = document.createElement('div');
+        action.className = 'bubble-action';
+        action.textContent = evento.accion || 'trabajando';
+        bubble.appendChild(action);
+
+        if (evento.critica_a) {
+            const critic = document.createElement('div');
+            critic.className = 'bubble-action';
+            critic.textContent = `-> critica a ${evento.critica_a}`;
+            bubble.appendChild(critic);
+        }
+
+        const message = document.createElement('div');
+        message.className = 'bubble-msg';
+        message.textContent = evento.mensaje || '';
+        bubble.appendChild(message);
+
+        if (evento.veredicto === 'aprobado' || evento.veredicto === 'sugiere') {
+            const verdict = document.createElement('div');
+            verdict.className = evento.veredicto === 'aprobado'
+                ? 'veredicto-aprobado'
+                : 'veredicto-sugiere';
+            verdict.textContent = evento.veredicto === 'aprobado'
+                ? 'Aprobado'
+                : 'Sugiere cambio';
+            bubble.appendChild(verdict);
+        }
         stream.appendChild(bubble);
         if (scroll) stream.scrollTop = stream.scrollHeight;
         return bubble;

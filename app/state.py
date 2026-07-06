@@ -11,6 +11,7 @@ class TutorState(TypedDict, total=False):
     event_queue: Queue
     route: str
     route_reason: str
+    agente_respondedor: str
     topic: str
     difficulty_type: str
     emotion: str

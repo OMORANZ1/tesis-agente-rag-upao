@@ -1,0 +1,7 @@
+# Dependencias adicionales para el modulo de evaluacion OE1
+# Instalar con: pip install -r evaluacion/requirements_eval.txt
+#
+# Si falla la instalacion de ragas, el sistema usa evaluacion manual por keywords.
+
+ragas>=0.1.0
+datasets>=2.0.0

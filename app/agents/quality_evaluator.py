@@ -37,10 +37,13 @@ Criterios obligatorios:
 1. NO contiene código completo ni solución directa.
 2. Está alineada al curso de Algoritmia y Programación (primer ciclo).
 3. Es apropiada para el nivel del estudiante (básico/intermedio).
-4. Hace UNA SOLA pregunta, no múltiples.
+4. Respeta el modo de aprendizaje activo.
 
-En modo tutorial se permite una explicación breve, pero debe terminar con una sola pregunta.
-En modo reto las pistas deben ser mínimas.
+Reglas por modo:
+- socratico: solo una pregunta orientadora; no explicación ni ejemplo.
+- tutorial: explicación breve + ejemplo concreto + una pregunta de verificación.
+- reto: reto práctico directo; no explicación inicial; no es obligatorio hacer pregunta.
+  Si attempt_count es bajo, no debe dar pistas. Si da pista, debe ser mínima.
 
 Devuelve SOLO JSON válido:
 {{

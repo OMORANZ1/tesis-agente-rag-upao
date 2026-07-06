@@ -3,7 +3,10 @@ from __future__ import annotations
 from queue import Queue
 from typing import Any
 
-from state import TutorState
+try:
+    from ..state import TutorState
+except ImportError:
+    from state import TutorState
 
 
 AGENTE_NOMBRES = {

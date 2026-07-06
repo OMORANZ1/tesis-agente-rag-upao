@@ -6,7 +6,7 @@ from queue import Empty, Queue
 from flask import Flask, Response, jsonify, render_template, request, stream_with_context
 
 try:
-    import config  # noqa: F401 — carga .env al iniciar Flask
+    from . import config  # noqa: F401 — carga .env al iniciar Flask
     from .agent import crear_agente, reiniciar_historial
     from .services.progress_service import obtener_progreso, TEMAS_ETIQUETAS
 except ImportError:

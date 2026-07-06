@@ -1,7 +1,7 @@
 from queue import Queue
 
 try:
-    from config import PROMPT_PATH
+    from .config import PROMPT_PATH
     from .graph import construir_grafo
     from .services.llm_service import crear_llm
     from .services.memory_service import (
@@ -38,7 +38,7 @@ def _trace_por_defecto() -> dict[str, str]:
         "generador_ejercicios": "no activado",
         "evaluador_calidad": "pendiente",
         "fuera_silabo": "no activado",
-        "pedagogo_socratico": "activo",
+        "pedagogo_socratico": "no activado",
     }
 
 
@@ -60,7 +60,7 @@ MODE_DEFAULT_AGENTS = {
     },
     "tutorial": {
         "orquestador": True,
-        "pedagogo": True,
+        "pedagogo": False,
         "tecnico": True,
         "generador": True,
         "motivador": False,
@@ -81,6 +81,7 @@ AGENT_NAME_MAP = {
     "generador_ejercicios": "generador",
     "pedagogo_socratico": "pedagogo",
     "evaluador_calidad": "evaluador",
+    "fuera_silabo": "fuera_silabo",
 }
 
 
@@ -101,7 +102,15 @@ def _normalizar_allowed_agents(
             if agent_name in allowed_agents:
                 config[agent_name] = bool(allowed_agents[agent_name])
     config["orquestador"] = True
-    config["pedagogo"] = True
+    if modo == "socratico":
+        config["pedagogo"] = True
+    elif modo == "tutorial":
+        config["pedagogo"] = False
+        config["generador"] = True
+        config["tecnico"] = True
+    elif modo == "reto":
+        config["tecnico"] = True
+        config["generador"] = False
     return config
 
 
@@ -113,7 +122,8 @@ def _agentes_seleccionados(allowed_agents: dict[str, bool]) -> list[str]:
         selected.append("generador")
     if allowed_agents.get("tecnico", False):
         selected.append("especialista")
-    selected.append("pedagogo")
+    if allowed_agents.get("pedagogo", False):
+        selected.append("pedagogo")
     return selected
 
 
@@ -163,18 +173,24 @@ def _formatear_resultado(resultado: dict, pregunta: str) -> dict:
         "No pude generar una respuesta. Intenta reformular tu pregunta.",
     )
     agents_trace = resultado.get("agents_trace", _trace_por_defecto())
-    if agents_trace.get("pedagogo_socratico") == "pendiente":
+    if (
+        resultado.get("agente_respondedor") == "pedagogo"
+        and agents_trace.get("pedagogo_socratico") == "pendiente"
+    ):
         agents_trace["pedagogo_socratico"] = (
             f"activo — {resultado.get('socratic_response_type', 'respuesta socrática')}"
         )
 
-    topic_progress = actualizar_progreso(
-        resultado.get("topic", "tema_no_identificado"),
-        interaccion=True,
-        respuesta_correcta=bool(resultado.get("student_answer_correct")),
-        attempt_count=resultado.get("attempt_count"),
-        student_progress=resultado.get("student_progress", ""),
-    )
+    if resultado.get("route") == "fuera_silabo" or resultado.get("out_of_syllabus"):
+        topic_progress = obtener_progreso()
+    else:
+        topic_progress = actualizar_progreso(
+            resultado.get("topic", "tema_no_identificado"),
+            interaccion=True,
+            respuesta_correcta=bool(resultado.get("student_answer_correct")),
+            attempt_count=resultado.get("attempt_count"),
+            student_progress=resultado.get("student_progress", ""),
+        )
 
     registrar_interaccion(pregunta, respuesta)
     registrar_preguntas(resultado.get("preguntas_nuevas", []))
@@ -189,6 +205,7 @@ def _formatear_resultado(resultado: dict, pregunta: str) -> dict:
         "debate_events": resultado.get("debate_events", []),
         "topic_progress": topic_progress,
         "modo_aprendizaje": resultado.get("modo_aprendizaje", "socratico"),
+        "agente_respondedor": resultado.get("agente_respondedor", ""),
     }
 
 
@@ -220,6 +237,7 @@ def crear_agente():
                     "agents_debate": salida["agents_debate"],
                     "orchestrator_decision": salida["orchestrator_decision"],
                     "topic_progress": salida["topic_progress"],
+                    "agente_respondedor": salida["agente_respondedor"],
                     "debate_events": salida["debate_events"],
                     "estado": "done",
                 }

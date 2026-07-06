@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluacion de Fidelidad RAG - OE1</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f1f5f9;
+            color: #1e293b;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+        .container { max-width: 1100px; margin: 0 auto; }
+        header {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+            color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+        header h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+        header p { opacity: 0.9; font-size: 0.95rem; }
+        .resumen {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .card .valor {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1e40af;
+        }
+        .card .etiqueta {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-top: 0.25rem;
+        }
+        .card.destacado {
+            border: 2px solid #16a34a;
+        }
+        .card.destacado .valor {
+            color: #16a34a;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+        th {
+            background: #334155;
+            color: white;
+            padding: 0.75rem 1rem;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+        td {
+            padding: 0.65rem 1rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-size: 0.9rem;
+        }
+        tr.aprobado td:last-child { color: #16a34a; font-weight: 600; }
+        tr.reprobado td:last-child { color: #dc2626; font-weight: 600; }
+        tr.aprobado { background: #f0fdf4; }
+        tr.reprobado { background: #fef2f2; }
+        .conclusion {
+            background: #f0fdf4;
+            border-left: 4px solid #16a34a;
+            padding: 1.25rem 1.5rem;
+            border-radius: 0 10px 10px 0;
+            font-size: 1rem;
+        }
+        .conclusion strong { display: block; margin-bottom: 0.5rem; }
+        footer {
+            margin-top: 2rem;
+            text-align: center;
+            color: #94a3b8;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Evaluacion de Fidelidad RAG - OE1</h1>
+            <p>Sistema evaluado: Agentes Inteligentes con RAG - UPAO</p>
+            <p>Fecha y hora de evaluacion: 01/07/2026 12:00:00</p>
+        </header>
+
+        <div class="resumen">
+            <div class="card destacado">
+                <div class="valor">85.0%</div>
+                <div class="etiqueta">Faithfulness Promedio</div>
+            </div>
+            <div class="card">
+                <div class="valor">2</div>
+                <div class="etiqueta">Preguntas Evaluadas</div>
+            </div>
+            <div class="card">
+                <div class="valor">1</div>
+                <div class="etiqueta">Aprobadas (&gt; 80%)</div>
+            </div>
+            <div class="card">
+                <div class="valor">1</div>
+                <div class="etiqueta">Reprobadas</div>
+            </div>
+            <div class="card">
+                <div class="valor">No</div>
+                <div class="etiqueta">RAGAS Disponible</div>
+            </div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Tema</th>
+                    <th>Pregunta</th>
+                    <th>Faithfulness</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="aprobado">
+                <td>1</td>
+                <td>Test</td>
+                <td>Pregunta test?</td>
+                <td>90.00%</td>
+                <td>Aprobado</td>
+            </tr><tr class="reprobado">
+                <td>2</td>
+                <td>Test</td>
+                <td>Otra pregunta?</td>
+                <td>70.00%</td>
+                <td>Reprobado</td>
+            </tr>
+            </tbody>
+        </table>
+
+        <div class="conclusion">
+            <strong>Hipotesis OE1 VERIFICADA</strong>
+            HIPOTESIS ESPECIFICA 1 VERIFICADA: El componente RAG garantiza un indice de Faithfulness de 85.0% (mu = 85.00%), significativamente superior al umbral del 80% establecido.
+        </div>
+
+        <footer>
+            Generado automaticamente por el modulo evaluacion/ - tesis-agente-rag-upao
+        </footer>
+    </div>
+</body>
+</html>

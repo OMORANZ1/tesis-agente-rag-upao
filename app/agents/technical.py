@@ -11,6 +11,8 @@ except ImportError:
 
 
 def _seleccionado(state: TutorState) -> bool:
+    if state.get("modo_aprendizaje") in {"tutorial", "reto"}:
+        return True
     return "especialista" in state.get("agentes_seleccionados", [])
 
 
@@ -52,6 +54,77 @@ def agente_especialista_tecnico(state: TutorState, retriever) -> TutorState:
     contexto = _limitar_texto("\n\n".join([doc.page_content for doc in docs]))
     historial_texto = _limitar_texto(formatear_historial(state.get("history", [])[-4:]), 900)
     generated_exercise = state.get("generated_exercise", {})
+
+    if state.get("modo_aprendizaje") == "reto":
+        attempt_count = state.get("attempt_count", 1)
+        prompt_reto = f"""
+Eres un evaluador técnico. Presenta retos prácticos directos y evalúa las
+soluciones del estudiante con feedback técnico preciso. No expliques antes del
+reto. Solo da pistas si el estudiante lleva más de 2 intentos fallidos.
+
+Contexto del sílabo:
+{contexto}
+
+Tema: {topic}
+Intento actual: {attempt_count}
+Historial reciente:
+{historial_texto}
+
+Mensaje actual:
+{state["student_message"]}
+
+Reglas de salida:
+- Si es el primer mensaje sobre el tema o el estudiante pide aprender, responde:
+  "🎯 RETO: [enunciado del problema práctico]
+  Criterios: [qué debe cumplir la solución]
+  Pista inicial: [pista conceptual mínima]"
+- Si el estudiante entrega una solución, responde:
+  "[✓ Correcto / ✗ Incorrecto]: [feedback técnico directo]
+  [Si incorrecto]: Revisa [aspecto específico]. Intenta de nuevo."
+- No expliques el concepto antes del reto.
+
+Respuesta final:
+"""
+        respuesta = llm.invoke(prompt_reto).content.strip()
+        analysis = {
+            "concepto_clave": topic,
+            "precision_requerida": "Modo reto: el estudiante debe resolver un problema práctico.",
+            "error_comun": "Esperar explicación previa en lugar de intentar la solución.",
+            "pregunta_tecnica_sugerida": "",
+        }
+        agents_used.append("especialista_tecnico")
+        contributions["especialista"] = "Respondió como evaluador técnico principal del modo reto."
+        debate.append(
+            {
+                "agente": "Especialista Técnico",
+                "modelo": AGENT_MODEL_LABELS["especialista"],
+                "accion": "respondió reto",
+                "aporte": respuesta[:220],
+            }
+        )
+        agents_trace["especialista_tecnico"] = "respondedor principal — reto técnico"
+        debate_events = emitir(
+            {**state, "debate_events": debate_events},
+            agente=AGENTE_NOMBRES["especialista"],
+            modelo=modelo,
+            ronda=3,
+            accion="responde",
+            mensaje="Generó o evaluó el reto técnico del turno.",
+            estado="final",
+        )
+        return {
+            "final_response": respuesta,
+            "technical_analysis": analysis,
+            "critic_of_exercise": "",
+            "corrected_exercise": {},
+            "rag_context": contexto,
+            "agents_used": agents_used,
+            "agents_trace": agents_trace,
+            "agents_contributions": contributions,
+            "agents_debate": debate,
+            "debate_events": debate_events,
+            "ronda_actual": 3,
+        }
 
     prompt = f"""
 Eres el Agente Especialista Técnico en Algoritmia y Programación.
