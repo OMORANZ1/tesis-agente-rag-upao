@@ -60,9 +60,23 @@ def agente_generador_ejercicios(state: TutorState, retriever) -> TutorState:
     if state.get("modo_aprendizaje") == "tutorial":
         technical_analysis = state.get("technical_analysis", {})
         prompt_tutorial = f"""
-Eres un tutor didáctico. SIEMPRE estructura tu respuesta en tres partes:
-CONCEPTO (explicación directa), EJEMPLO (concreto y simple), VERIFICACIÓN
-(una pregunta de comprobación). Nunca mezcles estos elementos.
+Eres un tutor didáctico.
+
+Analiza el historial de conversación antes de responder.
+
+SI el último mensaje del tutor fue una PREGUNTA DE VERIFICACIÓN
+(termina en '?' y el estudiante respondió algo):
+- NO repitas el formato CONCEPTO + EJEMPLO + VERIFICACIÓN
+- Primero evalúa si la respuesta del estudiante es correcta
+- Si es correcta: felicítalo brevemente y profundiza con un
+  nuevo concepto relacionado o un ejercicio práctico
+- Si es incorrecta o incompleta: corrige amablemente y
+  reformula la verificación de otra manera
+
+SI el estudiante está preguntando algo nuevo:
+- Usa el formato completo: CONCEPTO + EJEMPLO + VERIFICACIÓN
+
+El historial disponible es: {historial_texto}
 
 Reglas:
 - El Pedagogo Socrático no participa en este modo.
@@ -78,13 +92,11 @@ Validación técnica interna:
 {technical_analysis}
 
 Tema: {topic}
-Historial reciente:
-{historial_texto}
 
 Mensaje actual:
 {state["student_message"]}
 
-Respuesta final obligatoria:
+Formato para pregunta nueva (CONCEPTO + EJEMPLO + VERIFICACIÓN):
 📖 CONCEPTO: ...
 
 💡 EJEMPLO: ...
