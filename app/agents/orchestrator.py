@@ -69,6 +69,17 @@ def _detectar_bloqueo(mensaje: str) -> bool:
     return any(frase in texto for frase in BLOQUEO_FRASES)
 
 
+def _es_respuesta_verificacion(history: list[dict[str, str]], mensaje: str) -> bool:
+    """Detecta si el estudiante responde a una pregunta de verificación previa."""
+    if not history or not (mensaje or "").strip():
+        return False
+    ultimo_turno = history[-1]
+    if ultimo_turno.get("role") != "tutor":
+        return False
+    contenido_tutor = (ultimo_turno.get("content") or "").strip()
+    return contenido_tutor.endswith("?")
+
+
 def _detectar_progreso(mensaje: str, bloqueo: bool) -> str:
     texto = (mensaje or "").lower().strip()
     if bloqueo:
@@ -164,10 +175,16 @@ def agente_orquestador(state: TutorState, retriever) -> TutorState:
     mensaje = state["student_message"]
     has_code = detectar_codigo(mensaje)
     bloqueo = _detectar_bloqueo(mensaje)
-    out_of_syllabus = detectar_fuera_silabo(mensaje) or not detectar_tema_silabo(mensaje)
+    es_respuesta_verificacion = _es_respuesta_verificacion(history, mensaje)
+    modo = state.get("modo_aprendizaje", "socratico")
+
+    if es_respuesta_verificacion:
+        out_of_syllabus = False
+    else:
+        out_of_syllabus = detectar_fuera_silabo(mensaje) or not detectar_tema_silabo(mensaje)
+
     progreso_local = _detectar_progreso(mensaje, bloqueo)
     agentes_seleccionados = _agentes_seleccionados(state)
-    modo = state.get("modo_aprendizaje", "socratico")
 
     if out_of_syllabus:
         agents_trace = dict(state.get("agents_trace", {}))
@@ -212,6 +229,7 @@ def agente_orquestador(state: TutorState, retriever) -> TutorState:
             "bloqueo": False,
             "student_progress": "sin_evidencia",
             "out_of_syllabus": True,
+            "es_respuesta_verificacion": False,
             "activate_motivator": False,
             "activate_technical": False,
             "activate_exercise_generator": False,
@@ -264,6 +282,7 @@ Señales locales:
 - contiene código/pseudocódigo/lógica: {has_code}
 - bloqueo explícito: {bloqueo}
 - fuera de sílabo probable: {out_of_syllabus}
+- respuesta a verificación previa: {es_respuesta_verificacion}
 - progreso local: {progreso_local}
 
 Contexto RAG del sílabo:
@@ -316,10 +335,15 @@ Mensaje actual:
     if bloqueo and emotion == "neutral":
         emotion = "bloqueo"
     student_progress = data.get("student_progress", progreso_local)
+    if es_respuesta_verificacion and student_progress == "sin_evidencia":
+        student_progress = "avance_parcial"
     if bloqueo:
         student_progress = "bloqueado"
     attempt_count = obtener_intentos_tema(topic) + 1
-    out_of_syllabus = out_of_syllabus or bool(data.get("out_of_syllabus"))
+    if es_respuesta_verificacion:
+        out_of_syllabus = False
+    else:
+        out_of_syllabus = out_of_syllabus or bool(data.get("out_of_syllabus"))
 
     orchestrator_decision = data.get("orchestrator_decision", {})
     if not isinstance(orchestrator_decision, dict):
@@ -330,10 +354,16 @@ Mensaje actual:
         ),
         "motivo": orchestrator_decision.get(
             "motivo",
-            "Se coordina apoyo, ejercicio, precisión técnica e integración final.",
+            (
+                "El estudiante responde a una verificación previa del tutor."
+                if es_respuesta_verificacion
+                else "Se coordina apoyo, ejercicio, precisión técnica e integración final."
+            ),
         ),
         "prioridad": agente_respondedor,
     }
+    if es_respuesta_verificacion:
+        orchestrator_decision["ruta"] = modo
 
     activate_motivator = emotion in EMOCIONES_FRUSTRACION
     activate_technical = "especialista" in agentes_seleccionados
@@ -352,6 +382,11 @@ Mensaje actual:
     contributions = dict(state.get("agents_contributions", {}))
     contributions["orquestador"] = (
         f"Tema: {topic}. Prioridad: {orchestrator_decision['prioridad']}."
+        + (
+            " Respuesta a verificación previa detectada."
+            if es_respuesta_verificacion
+            else ""
+        )
     )
     debate = list(state.get("agents_debate", []))
     debate.append(
@@ -422,6 +457,7 @@ Mensaje actual:
         "attempt_count": attempt_count,
         "has_code": has_code,
         "out_of_syllabus": out_of_syllabus,
+        "es_respuesta_verificacion": es_respuesta_verificacion,
         "activate_motivator": activate_motivator,
         "activate_technical": activate_technical,
         "activate_exercise_generator": activate_exercise_generator,

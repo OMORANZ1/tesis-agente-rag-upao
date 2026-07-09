@@ -47,3 +47,4 @@ class TutorState(TypedDict, total=False):
     socratic_response_type: str
     preguntas_hechas: list[str]
     preguntas_nuevas: list[str]
+    es_respuesta_verificacion: bool
